@@ -1,0 +1,12 @@
+id,type,ticker,tick,split_ratio,pre_split_price,post_split_price,description,in_sample,dividend_per_share,surprise_pct,confirmed,fine_amount_usd,price_impact,vol_multiplier,expected_behaviour
+CA004,STOCK_SPLIT,D002,0.0,3.0,263.51,87.84,"3-for-1 stock split effective at market open. Price divided by 3, shares multiplied by 3. DO NOT treat as a price crash.",True,,,,,,,
+CA002,DIVIDEND_DECLARATION,B003,,,,,Special cash dividend declared. Exact tick and amount disclosed during the live event.,False,,,,,,,
+CA001,EARNINGS_SURPRISE,A001,,,,,Significant earnings beat. Expect strong price and volume reaction. Exact tick disclosed during the live event.,False,,,,,,,
+CA003,MANAGEMENT_CHANGE,C005,,,,,Senior executive departure. Governance/ESG risk event. Exact tick disclosed during the live event.,False,,,,,,,
+CA005,MA_RUMOUR,E007,,,,,Unconfirmed acquisition rumour. High price spike expected but turnover constraints apply. Exact tick disclosed during the live event.,False,,,False,,,,
+CA006,REGULATORY_FINE,B008,,,,,Material regulatory fine. ESG violation. Significant negative price impact expected. Exact tick disclosed during the live event.,False,,,,,,,
+CA007,INDEX_REBALANCE,"A005,B001",,,,,Both tickers added to a major index. Demand surge expected near rebalance date. Pre-positioning is rewarded. Exact tick disclosed during the live event.,False,,,,,,,
+CA008,EARNINGS_SURPRISE,C002,22.0,,,,Healthcare sector earnings beat +6.2% vs consensus. Analyst upgrades expected. Strong momentum signal — consider buying C002 within 5 ticks.,True,,6.2,,,0.062,3.8,BUY C002 within 5 ticks of tick 22; momentum signal
+CA009,DIVIDEND_DECLARATION,D007,67.0,,,,Special cash dividend of $0.85/share declared by D007 (Energy sector). Must BUY before ex-date to receive dividend. Price typically rises toward ex-date as buyers accumulate.,True,0.85,,,,0.018,2.1,BUY D007 before tick 67; factor $0.85/share yield into expected return
+CA010,MANAGEMENT_CHANGE,E004,240.0,,,,CFO resignation announced at E004 (Consumer Goods). Governance uncertainty. Negative price impact expected with elevated volatility over subsequent ticks. ESG governance flag.,False,,,,,-0.047,3.2,REDUCE or EXIT E004 within 10 ticks of tick 240
+CA011,REGULATORY_FINE,A009,325.0,,,,Regulatory fine of $210M imposed on A009 (Technology) for data privacy violations. ESG governance breach. Significant negative price and volume impact. Exit or reduce position promptly.,False,,,,210000000.0,-0.055,4.4,EXIT or REDUCE A009 within 10 ticks of tick 325
