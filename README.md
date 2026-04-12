@@ -141,7 +141,3 @@ LLM_ENDPOINT=http://localhost:8000/llm/query python agent.py
 ```
 Total = 60% × Sharpe + 20% × PnL + 20% × Test Cases + up to 20 bonus (demo)
 ```
-
-## Team
-
-BlackRock HackKnight 2026 at IIT Delhi
