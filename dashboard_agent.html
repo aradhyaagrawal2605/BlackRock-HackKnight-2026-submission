@@ -147,23 +147,41 @@ function loadFile(input, key) {
 }
 
 async function autoLoad() {
-  const paths = [
-    ['portfolio_snapshots.json','snap'], ['orders_log.json','orders'], ['results.json','results'],
-    ['llm_call_log.json','llm'], ['market_feed_full.json','feed'], ['corporate_actions.json','ca'],
+  const SK = 'starter_kit - IIT Delhi Hackathon/Starter_Kit/';
+  const outputFiles = [
+    ['portfolio_snapshots.json','snap'], ['orders_log.json','orders'],
+    ['results.json','results'], ['llm_call_log.json','llm'],
   ];
-  const altBase = 'starter_kit - IIT Delhi Hackathon/Starter_Kit/';
+  const dataFiles = [
+    ['market_feed_full.json','feed'], ['market_feed_sample.json','feed'],
+    ['corporate_actions.json','ca'], ['fundamentals.json','fund'],
+  ];
   let loaded = 0;
-  for (const [f, k] of paths) {
-    for (const prefix of ['', altBase]) {
+
+  for (const [f, k] of outputFiles) {
+    if (DATA[k]) continue;
+    for (const prefix of ['', SK]) {
       try { const r = await fetch(prefix+f); if (r.ok) { DATA[k] = await r.json(); loaded++; break; } } catch(e) {}
     }
   }
-  if (!DATA.feed) {
-    try { const r = await fetch(altBase+'market_feed_sample.json'); if (r.ok) { DATA.feed = await r.json(); loaded++; } } catch(e) {}
+
+  for (const [f, k] of dataFiles) {
+    if (DATA[k]) continue;
+    for (const prefix of [SK, '']) {
+      try { const r = await fetch(prefix+f); if (r.ok) { DATA[k] = await r.json(); loaded++; break; } } catch(e) {}
+    }
   }
-  if (loaded > 0) tryRender();
-  else alert('Auto-load failed — load files manually.');
+
+  if (loaded > 0) {
+    tryRender();
+    document.querySelector('[onclick="autoLoad()"]').classList.add('loaded');
+    document.querySelector('[onclick="autoLoad()"]').textContent = 'Loaded ✓';
+  } else {
+    document.getElementById('statusBadge').textContent = 'Auto-load failed — use file buttons or run: python -m http.server';
+  }
 }
+
+window.addEventListener('DOMContentLoaded', () => autoLoad());
 
 function tryRender() {
   const snaps = normalizeSnapshots(DATA.snap);

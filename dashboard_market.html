@@ -147,28 +147,29 @@ function loadFile(input, key) {
 }
 
 async function autoLoadFromPaths() {
-  const base = 'starter_kit - IIT Delhi Hackathon/Starter_Kit/';
-  const files = [
-    [base + 'market_feed_sample.json', 'feed'],
-    [base + 'fundamentals.json', 'fund'],
-    [base + 'corporate_actions.json', 'ca'],
+  const SK = 'starter_kit - IIT Delhi Hackathon/Starter_Kit/';
+  const candidates = [
+    [[SK+'market_feed_full.json','feed'],[SK+'market_feed_sample.json','feed'],[SK+'fundamentals.json','fund'],[SK+'corporate_actions.json','ca']],
+    [['market_feed_full.json','feed'],['market_feed_sample.json','feed'],['fundamentals.json','fund'],['corporate_actions.json','ca']],
   ];
   let loaded = 0;
-  for (const [path, key] of files) {
-    try {
-      const resp = await fetch(path);
-      if (resp.ok) { DATA[key] = await resp.json(); loaded++; }
-    } catch(e) {}
-  }
-  if (loaded === 0) {
-    const altFiles = [['market_feed_sample.json','feed'],['fundamentals.json','fund'],['corporate_actions.json','ca']];
-    for (const [path, key] of altFiles) {
-      try { const resp = await fetch(path); if (resp.ok) { DATA[key] = await resp.json(); loaded++; } } catch(e) {}
+  for (const group of candidates) {
+    for (const [path, key] of group) {
+      if (DATA[key]) continue;
+      try { const r = await fetch(path); if (r.ok) { DATA[key] = await r.json(); loaded++; } } catch(e) {}
     }
+    if (loaded >= 2) break;
   }
-  if (loaded > 0) tryRender();
-  else alert('Auto-load failed. Please load files manually using the buttons.');
+  if (loaded > 0) {
+    tryRender();
+    document.getElementById('btnAutoLoad').classList.add('loaded');
+    document.getElementById('btnAutoLoad').textContent = 'Loaded ✓';
+  } else {
+    document.getElementById('statusBadge').textContent = 'Auto-load failed — use file buttons or run: python -m http.server';
+  }
 }
+
+window.addEventListener('DOMContentLoaded', () => autoLoadFromPaths());
 
 function normalizeFeed(raw) {
   if (!raw) return [];
@@ -301,7 +302,7 @@ function renderAll() {
     <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Sector Performance (Normalized to 100)</h3><div class="tag">Equal-weighted sector indices</div></div><div class="card-body"><div id="chartSectorPerf" style="height:360px"></div></div></div></div>
     <div class="grid grid-2">
       <div class="card"><div class="card-header"><h3>Return Distribution by Sector</h3><div class="tag">Tick-over-tick log returns</div></div><div class="card-body"><div id="chartRetDist" style="height:340px"></div></div></div>
-      <div class="card"><div class="card-header"><h3>Correlation Heatmap</h3><div class="tag">Return correlations</div></div><div class="card-body"><div id="chartCorr" style="height:380px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Correlation Heatmap</h3><div class="tag">50 × 50 return correlations (all tickers)</div></div><div class="card-body"><div id="chartCorr" style="height:560px"></div></div></div>
     </div>
     <div class="grid grid-2">
       <div class="card"><div class="card-header"><h3>Volatility Comparison</h3><div class="tag">Std dev of log returns</div></div><div class="card-body"><div id="chartVol" style="height:340px"></div></div></div>
@@ -454,10 +455,10 @@ function renderRetDist() {
 }
 
 function renderCorrelation() {
-  const tickers = getFilteredTickers().slice(0, 30);
+  const tickers = getFilteredTickers();
   const retMatrix = tickers.map(t => computeLogReturns(t));
   const minLen = Math.min(...retMatrix.map(r => r.length));
-  if (minLen < 3) { document.getElementById('chartCorr').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:40px">Not enough data</p>'; return; }
+  if (minLen < 3 || tickers.length === 0) { document.getElementById('chartCorr').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:40px">Not enough data</p>'; return; }
   const trimmed = retMatrix.map(r => r.slice(0, minLen));
   const n = tickers.length;
   const corr = Array.from({length: n}, () => Array(n).fill(0));
@@ -470,7 +471,13 @@ function renderCorrelation() {
       corr[i][j] = da > 0 && db > 0 ? num / Math.sqrt(da*db) : 0;
     }
   }
-  Plotly.newPlot('chartCorr', [{ z: corr, x: tickers, y: tickers, type: 'heatmap', colorscale: [[0,'#ef4444'],[0.5,'#0a0e17'],[1,'#10b981']], zmin: -1, zmax: 1, hovertemplate: '%{x} × %{y}<br>ρ = %{z:.3f}<extra></extra>' }], { ...PLOTLY_LAYOUT_BASE, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, tickfont: { size: 9 } }, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, tickfont: { size: 9 } } }, PLOTLY_CONFIG);
+  const tickFont = n > 40 ? 7 : 9;
+  Plotly.newPlot('chartCorr', [{ z: corr, x: tickers, y: tickers, type: 'heatmap', colorscale: [[0,'#ef4444'],[0.5,'#0a0e17'],[1,'#10b981']], zmin: -1, zmax: 1, hovertemplate: '%{x} × %{y}<br>ρ = %{z:.3f}<extra></extra>' }], {
+    ...PLOTLY_LAYOUT_BASE,
+    margin: { ...PLOTLY_LAYOUT_BASE.margin, l: 72, b: 88 },
+    yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, autorange: 'reversed', tickfont: { size: tickFont } },
+    xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, tickangle: -45, tickfont: { size: tickFont }, side: 'bottom' }
+  }, PLOTLY_CONFIG);
 }
 
 function renderVolatility() {
