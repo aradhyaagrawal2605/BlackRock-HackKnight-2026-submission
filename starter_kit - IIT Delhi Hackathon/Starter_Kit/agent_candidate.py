@@ -1,17 +1,13 @@
 """
-Hackathon@IITD 2026 — Candidate Agent  (v12 — CA-signal MVO)
-=============================================================
+Hackathon@IITD 2026 — Candidate Agent
+======================================
 Architecture:
-  1. Deploy 29.5% at tick 0 into Sharpe-maximised basket
-  2. SignalEngine injects deterministic CA mu spikes into the return vector
-  3. Cost-integrated MVO (with E007 ≤ 5% after tick 200) runs every rebalance tick
-  4. 60 refined LLM prompts queued — enable with ENABLE_LLM = True
-
-Key constraints:
-  - Turnover = total_traded / avg_NAV ≤ 30%  (DISQUALIFYING)
-  - Holdings ≤ 30 at all times               (DISQUALIFYING)
-  - E007 weight 0-5% after tick 200          (TC006)
-  - 60 LLM calls max                         (TC008)
+  1. Deploy ~28% at tick 0 into optimised basket (B001-heavy, Sharpe-maximised)
+  2. Read corporate_actions.json to build CA schedule at runtime
+  3. SignalEngine injects CA-derived mu signals using price_impact_pct from the file
+  4. CA-reactive trades executed at event ticks (buys for positive, sells for negative)
+  5. 60 refined LLM prompts queued — enable with ENABLE_LLM = True
+  6. Sharpe annualised by sqrt(252)
 """
 
 import argparse
