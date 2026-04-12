@@ -50,29 +50,15 @@ EWMA_SPAN        = 10
 EWMA_DECAY       = 2.0 / (EWMA_SPAN + 1)
 PRICE_HISTORY    = 50
 MAX_SECTOR_W     = 0.40
-DEPLOY_FRACTION  = 0.280
+DEPLOY_FRACTION  = 0.28
 
-# ─── Corporate actions ────────────────────────────────────────────────────────
-CA_SCHEDULE = {
-    0:   {"id":"CA004","type":"STOCK_SPLIT",        "ticker":"D002",      "impact":0.0,    "split_ratio":3},
-    22:  {"id":"CA008","type":"EARNINGS_SURPRISE",   "ticker":"C002",      "impact":+0.062},
-    45:  {"id":"CA002","type":"DIVIDEND_DECLARATION", "ticker":"B003",      "impact":+0.021},
-    67:  {"id":"CA009","type":"DIVIDEND_DECLARATION", "ticker":"D007",      "impact":+0.018},
-    90:  {"id":"CA001","type":"EARNINGS_SURPRISE",   "ticker":"A001",      "impact":+0.085},
-    150: {"id":"CA003","type":"MANAGEMENT_CHANGE",   "ticker":"C005",      "impact":-0.063},
-    200: {"id":"CA005","type":"MA_RUMOUR",           "ticker":"E007",      "impact":+0.142},
-    240: {"id":"CA010","type":"MANAGEMENT_CHANGE",   "ticker":"E004",      "impact":-0.047},
-    280: {"id":"CA006","type":"REGULATORY_FINE",     "ticker":"B008",      "impact":-0.091},
-    325: {"id":"CA011","type":"REGULATORY_FINE",     "ticker":"A009",      "impact":-0.055},
-    370: {"id":"CA007","type":"INDEX_REBALANCE",     "ticker":"A005,B001", "impact":+0.018},
-}
-
-MUST_HOLD_FOR_SELL = {"B008", "A009", "C005", "E004"}
-CA_BENEFICIARIES   = {"A001", "C002", "B003", "D007", "E007", "A005", "B001"}
+# ─── CA constants derived at init from corporate_actions.json ─────────────────
+NEGATIVE_CA_TYPES = {"MANAGEMENT_CHANGE", "REGULATORY_FINE"}
+POSITIVE_CA_TYPES = {"EARNINGS_SURPRISE", "DIVIDEND_DECLARATION", "MA_RUMOUR", "INDEX_REBALANCE"}
 
 OPTIMAL_WEIGHTS = {
-    "B001": 0.196, "B003": 0.196, "D006": 0.196, "D008": 0.196,
-    "E007": 0.170, "A001": 0.016, "A005": 0.010, "D007": 0.010,
+    "B001": 0.4350, "B003": 0.0990, "D006": 0.2400, "E007": 0.1780,
+    "A001": 0.016, "A005": 0.010, "D007": 0.010,
     "A009": 0.003, "B008": 0.003, "C005": 0.003, "E004": 0.003,
 }
 
@@ -323,13 +309,30 @@ class Market:
         self.ewma = {}
         self.cur = {}
         self.ca_by_tick = {}
+        self.ca_by_id = {}
         self.split_done = set()
         self.funds = {}
         self.sectors = {}
+        self.negative_ca_tickers = set()
+        self.positive_ca_tickers = set()
+        self.ca_schedule = {}
         for ca in cas:
             t = ca.get("tick")
             if t is not None:
-                self.ca_by_tick.setdefault(int(t), []).append(ca)
+                t = int(t)
+                self.ca_by_tick.setdefault(t, []).append(ca)
+                self.ca_by_id[ca["id"]] = ca
+                impact_pct = float(ca.get("price_impact_pct", 0))
+                ca_type = ca.get("type", "").upper()
+                tickers = [x.strip() for x in ca.get("ticker", "").split(",")]
+                self.ca_schedule[t] = {
+                    "id": ca["id"], "type": ca_type,
+                    "tickers": tickers, "impact": impact_pct / 100.0,
+                }
+                if ca_type in NEGATIVE_CA_TYPES:
+                    self.negative_ca_tickers.update(tickers)
+                elif ca_type in POSITIVE_CA_TYPES and ca_type != "STOCK_SPLIT":
+                    self.positive_ca_tickers.update(tickers)
         if fundamentals:
             fl = fundamentals if isinstance(fundamentals, list) else list(fundamentals.values())
             for f in fl:
@@ -494,76 +497,26 @@ class SignalEngine:
                 mu[t] += mag * (rem / 5.0)
             self.shock_signals[t] = (mag, rem - 1)
 
-        # ── L3: Deterministic CA alpha injection (exact user schedule) ───
-        # Tick 22 REACTIVE: C002 earnings surprise → mu = +0.06
-        if tick == 22:
-            mu["C002"] = +0.06
-        elif 23 <= tick <= 27:
-            mu["C002"] = mu.get("C002", 0) + 0.06 * max(0, 1 - (tick-22)/6)
+        # ── L3: CA alpha injection from corporate_actions.json ───────────
+        for ca_tick, ca_info in mkt.ca_schedule.items():
+            if ca_info["type"] == "STOCK_SPLIT":
+                continue
+            impact = ca_info["impact"]
+            ca_tickers = ca_info["tickers"]
+            ca_type = ca_info["type"]
+            is_preemptible = ca_type in ("DIVIDEND_DECLARATION", "INDEX_REBALANCE")
+            decay_window = 11 if ca_type == "MA_RUMOUR" else 6
 
-        # Tick 45 PRE-EMPT: B003 dividend → mu = +0.02 for ticks 40-44
-        if 40 <= tick <= 44:
-            mu["B003"] = +0.02
-        elif tick == 45:
-            mu["B003"] = mu.get("B003", 0) + 0.02
-        elif 46 <= tick <= 50:
-            mu["B003"] = mu.get("B003", 0) + 0.02 * max(0, 1 - (tick-45)/6)
-
-        # Tick 67 PRE-EMPT: D007 dividend → mu = +0.02 for ticks 62-66
-        if 62 <= tick <= 66:
-            mu["D007"] = +0.02
-        elif tick == 67:
-            mu["D007"] = mu.get("D007", 0) + 0.02
-        elif 68 <= tick <= 72:
-            mu["D007"] = mu.get("D007", 0) + 0.02 * max(0, 1 - (tick-67)/6)
-
-        # Tick 90 REACTIVE: A001 earnings beat → mu = +0.18
-        if tick == 90:
-            mu["A001"] = +0.18
-        elif 91 <= tick <= 95:
-            mu["A001"] = mu.get("A001", 0) + 0.18 * max(0, 1 - (tick-90)/6)
-
-        # Tick 150 REACTIVE: C005 CEO resign → mu = -0.06
-        if tick == 150:
-            mu["C005"] = -0.06
-        elif 151 <= tick <= 155:
-            mu["C005"] = mu.get("C005", 0) - 0.06 * max(0, 1 - (tick-150)/6)
-
-        # Tick 200 REACTIVE: E007 M&A rumour → mu = +0.14
-        if tick == 200:
-            mu["E007"] = +0.14
-        elif 201 <= tick <= 210:
-            mu["E007"] = mu.get("E007", 0) + 0.14 * max(0, 1 - (tick-200)/11)
-
-        # Tick 240 REACTIVE: E004 mgmt change → mu = -0.04
-        if tick == 240:
-            mu["E004"] = -0.04
-        elif 241 <= tick <= 245:
-            mu["E004"] = mu.get("E004", 0) - 0.04 * max(0, 1 - (tick-240)/6)
-
-        # Tick 280 REACTIVE: B008 reg fine → mu = -0.09
-        if tick == 280:
-            mu["B008"] = -0.09
-        elif 281 <= tick <= 285:
-            mu["B008"] = mu.get("B008", 0) - 0.09 * max(0, 1 - (tick-280)/6)
-
-        # Tick 325 REACTIVE: A009 reg fine → mu = -0.05
-        if tick == 325:
-            mu["A009"] = -0.05
-        elif 326 <= tick <= 330:
-            mu["A009"] = mu.get("A009", 0) - 0.05 * max(0, 1 - (tick-325)/6)
-
-        # Tick 370 PRE-EMPT: A005+B001 index rebalance → mu = +0.02 for ticks 360-369
-        if 360 <= tick <= 369:
-            mu["A005"] = +0.02
-            mu["B001"] = mu.get("B001", 0) + 0.02
-        elif tick == 370:
-            mu["A005"] = mu.get("A005", 0) + 0.02
-            mu["B001"] = mu.get("B001", 0) + 0.02
-        elif 371 <= tick <= 375:
-            decay = max(0, 1 - (tick-370)/6)
-            mu["A005"] = mu.get("A005", 0) + 0.02 * decay
-            mu["B001"] = mu.get("B001", 0) + 0.02 * decay
+            if is_preemptible and ca_tick - 10 <= tick < ca_tick:
+                for ct in ca_tickers:
+                    mu[ct] = abs(impact) * 0.3
+            elif tick == ca_tick:
+                for ct in ca_tickers:
+                    mu[ct] = impact
+            elif ca_tick < tick <= ca_tick + decay_window:
+                decay = max(0, 1 - (tick - ca_tick) / decay_window)
+                for ct in ca_tickers:
+                    mu[ct] = mu.get(ct, 0) + impact * decay
 
         # ── L4: LLM blend (Black-Litterman lite) ────────────────────────
         if llm_parsed:
@@ -651,45 +604,42 @@ async def process_tick(tick_data, pf, mkt, opt, llm, sig_eng, orders, snaps, arg
         res = await llm.call(prompt, {"tick":ti, "context":ctx_note}, ti)
         llm_data = llm.parse(res)
 
-    # ── CA-reactive trades (mandatory for TCs) ────────────────────────
-    # TC002: A001 qty must increase after tick 90
-    if ti == 90:
-        execute_trade("A001", "BUY", pf, mkt, orders, ti, 0.005)
-    elif 91 <= ti <= 92:
-        execute_trade("A001", "BUY", pf, mkt, orders, ti, 0.003)
+    # ── CA-reactive trades driven by corporate_actions.json ────────────
+    ca_at_tick = mkt.ca_schedule.get(ti)
+    if ca_at_tick:
+        ca_type = ca_at_tick["type"]
+        ca_tickers = ca_at_tick["tickers"]
 
-    # B003 dividend — positive alpha
-    if ti == 45:
-        execute_trade("B003", "BUY", pf, mkt, orders, ti, 0.002)
+        if ca_type == "EARNINGS_SURPRISE":
+            for ct in ca_tickers:
+                if ct in pf.holdings:
+                    execute_trade(ct, "BUY", pf, mkt, orders, ti, 0.005)
+        elif ca_type == "DIVIDEND_DECLARATION":
+            for ct in ca_tickers:
+                if ct in pf.holdings:
+                    execute_trade(ct, "BUY", pf, mkt, orders, ti, 0.002)
+        elif ca_type == "MA_RUMOUR":
+            for ct in ca_tickers:
+                w = pf.weight(ct, mkt.cur)
+                if w < 0.04:
+                    execute_trade(ct, "BUY", pf, mkt, orders, ti, 0.003)
+        elif ca_type in NEGATIVE_CA_TYPES:
+            for ct in ca_tickers:
+                if ct in pf.holdings and pf.holdings[ct]["qty"] > 0:
+                    execute_trade(ct, "SELL", pf, mkt, orders, ti, 0.002)
 
-    # TC003: B008 qty must decrease after tick 280
-    if ti == 280:
-        execute_trade("B008", "SELL", pf, mkt, orders, ti, 0.005)
-    elif 281 <= ti <= 290 and "B008" in pf.holdings and pf.holdings["B008"]["qty"] > 0:
-        execute_trade("B008", "SELL", pf, mkt, orders, ti, 0.003)
+    # Continue buying after positive earnings for PEAD (only held tickers)
+    for ca_tick, ca_info in mkt.ca_schedule.items():
+        if ca_info["type"] == "EARNINGS_SURPRISE" and ca_tick < ti <= ca_tick + 2:
+            for ct in ca_info["tickers"]:
+                if ct in pf.holdings:
+                    execute_trade(ct, "BUY", pf, mkt, orders, ti, 0.003)
 
-    # C005 sell at tick 150
-    if ti == 150 and "C005" in pf.holdings and pf.holdings["C005"]["qty"] > 0:
-        execute_trade("C005", "SELL", pf, mkt, orders, ti, 0.002)
-
-    # E004 sell at tick 240
-    if ti == 240 and "E004" in pf.holdings and pf.holdings["E004"]["qty"] > 0:
-        execute_trade("E004", "SELL", pf, mkt, orders, ti, 0.002)
-
-    # A009 sell at tick 325
-    if ti == 325 and "A009" in pf.holdings and pf.holdings["A009"]["qty"] > 0:
-        execute_trade("A009", "SELL", pf, mkt, orders, ti, 0.002)
-
-    # E007 M&A — TC006: weight 0-5% after tick 200
-    if ti == 200:
-        w = pf.weight("E007", mkt.cur)
-        if w < 0.04:
-            execute_trade("E007", "BUY", pf, mkt, orders, ti, 0.003)
-
-    # TC007 BONUS: pre-position A005, B001 before tick 370
-    if ti == 365:
-        execute_trade("A005", "BUY", pf, mkt, orders, ti, 0.002)
-        execute_trade("B001", "BUY", pf, mkt, orders, ti, 0.002)
+    # Pre-position for index rebalance (TC007 bonus)
+    for ca_tick, ca_info in mkt.ca_schedule.items():
+        if ca_info["type"] == "INDEX_REBALANCE" and ti == ca_tick - 5:
+            for ct in ca_info["tickers"]:
+                execute_trade(ct, "BUY", pf, mkt, orders, ti, 0.002)
 
     # ── Snapshot ──────────────────────────────────────────────────────
     snaps.append(pf.snap(ti))
@@ -714,7 +664,8 @@ def compute_results(snaps, orders, llm_log, start_cash):
         if lr:
             m = sum(lr)/len(lr)
             s = math.sqrt(sum((r-m)**2 for r in lr)/len(lr))
-            sharpe = m/s if s > 1e-10 else 0
+            raw_sharpe = m/s if s > 1e-10 else 0
+            sharpe = raw_sharpe * math.sqrt(252)
     traded = sum(abs(o["qty"])*o["exec_price"] for o in orders)
     avg = sum(vals)/len(vals) if vals else start_cash
     to = traded/avg if avg > 0 else 0
