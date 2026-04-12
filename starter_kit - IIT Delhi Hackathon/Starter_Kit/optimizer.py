@@ -63,28 +63,28 @@ class Optimizer:
         price_history: dict[str, list[float]],
         current_weights: dict[str, float],
         turnover_budget: float = 0.30,
+        extra_constraints: dict = None,
     ) -> dict[str, float]:
         """
         Run the optimizer and return target portfolio weights {ticker: weight}.
 
         Parameters
         ----------
-        tickers          : list of all available tickers this tick
-        expected_returns : {ticker: expected log return}
-        price_history    : {ticker: [price_t-N, ..., price_t]}
-        current_weights  : {ticker: current weight in portfolio}
-        turnover_budget  : remaining fraction of portfolio that can be traded
+        tickers            : list of all available tickers this tick
+        expected_returns   : {ticker: expected log return}
+        price_history      : {ticker: [price_t-N, ..., price_t]}
+        current_weights    : {ticker: current weight in portfolio}
+        turnover_budget    : remaining fraction of portfolio that can be traded
+        extra_constraints  : {ticker: max_weight} — per-ticker weight caps
 
         Returns
         -------
         {ticker: target_weight}  — weights sum to 1, all >= 0
         """
-        # Filter to tickers with sufficient price history
         eligible = [
             t for t in tickers
             if len(price_history.get(t, [])) >= MIN_HISTORY
         ]
-
         if len(eligible) < 2:
             log.warning("Not enough tickers with price history — returning equal weight")
             return self._equal_weight(eligible or tickers[:self.max_holdings])
@@ -94,11 +94,13 @@ class Optimizer:
         w_prev = np.array([current_weights.get(t, 0.0) for t in eligible])
 
         if CVXPY_AVAILABLE:
-            weights = self._cvxpy_optimise(mu, Sigma, w_prev, turnover_budget, len(eligible))
+            weights = self._cvxpy_optimise(
+                mu, Sigma, w_prev, turnover_budget, len(eligible),
+                tickers=eligible, extra_constraints=extra_constraints,
+            )
         else:
             weights = self._greedy_optimise(mu, Sigma, eligible)
 
-        # Map back to tickers and apply cardinality trim
         result = dict(zip(eligible, weights))
         result = self._apply_cardinality(result)
         result = self._normalise(result)
@@ -148,16 +150,38 @@ class Optimizer:
         w_prev: np.ndarray,
         turnover_budget: float,
         n: int,
+        tickers: list = None,
+        extra_constraints: dict = None,
     ) -> np.ndarray:
         w = cp.Variable(n, nonneg=True)
 
-        objective = cp.Maximize(mu @ w - self.gamma * cp.quad_form(w, Sigma))
+        tc_penalty = 0.002
+        objective = cp.Maximize(
+            mu @ w
+            - self.gamma * cp.quad_form(w, Sigma)
+            - tc_penalty * cp.sum(cp.abs(w - w_prev))
+        )
 
         constraints = [
-            cp.sum(w) == 1,                              # fully invested
-            w <= self.max_single_weight,                 # max single position
-            cp.sum(cp.abs(w - w_prev)) <= turnover_budget,  # turnover limit
+            cp.sum(w) == 1,
+            w <= self.max_single_weight,
+            cp.sum(cp.abs(w - w_prev)) <= turnover_budget,
         ]
+
+        if tickers and len(tickers) == n:
+            sectors = {}
+            for idx, t in enumerate(tickers):
+                prefix = t[0] if t else '?'
+                sectors.setdefault(prefix, []).append(idx)
+            for prefix, indices in sectors.items():
+                if len(indices) > 1:
+                    constraints.append(cp.sum(w[indices]) <= 0.40)
+
+        if extra_constraints and tickers:
+            ticker_idx = {t: i for i, t in enumerate(tickers)}
+            for ticker, max_w in extra_constraints.items():
+                if ticker in ticker_idx:
+                    constraints.append(w[ticker_idx[ticker]] <= max_w)
 
         prob = cp.Problem(objective, constraints)
 
@@ -176,14 +200,10 @@ class Optimizer:
             return self._equal_weight_array(n)
 
         weights = np.clip(w.value, 0, None)
-
-        # Zero out tiny weights (below min_weight)
         weights[weights < self.min_weight * 0.5] = 0.0
-
         total = weights.sum()
         if total < 1e-8:
             return self._equal_weight_array(n)
-
         return weights / total
 
     # ── Greedy fallback (no cvxpy) ─────────────────────────────────────────────

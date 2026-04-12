@@ -326,22 +326,6 @@ def run(args):
     return result
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Hackathon@IITD 2026 Validator")
-    parser.add_argument("--orders",     required=True, help="orders_log.json")
-    parser.add_argument("--portfolio",  required=True, help="portfolio_snapshots.json")
-    parser.add_argument("--llm_calls",  required=True, help="llm_call_log.json")
-    parser.add_argument("--results",    required=True, help="results.json  (produced by agent.py)")
-    parser.add_argument("--ca",         default="corporate_actions.json")
-    parser.add_argument("--fundamentals", default=None,
-                        help="fundamentals.json (optional — enables ESG integration bonus check)")
-    parser.add_argument("--output",     default=None,  help="Output JSON path")
-    args = parser.parse_args()
-
-    outcome = run(args)
-    sys.exit(0 if not outcome["disqualified"] else 1)
-
-
 # ─── TC009: Fundamentals integration check (bonus) ────────────────────────────
 def tc009_fundamentals_esg(snaps, fundamentals_path):
     """
@@ -389,3 +373,19 @@ def tc009_fundamentals_esg(snaps, fundamentals_path):
     return False, (f"No ESG-driven underweight detected: "
                    f"E004 avg {avg_e004:.2%} (ESG {esg_by_ticker.get('E004','?')}), "
                    f"A009 avg {avg_a009:.2%} (ESG {esg_by_ticker.get('A009','?')})")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Hackathon@IITD 2026 Validator")
+    parser.add_argument("--orders",     required=True, help="orders_log.json")
+    parser.add_argument("--portfolio",  required=True, help="portfolio_snapshots.json")
+    parser.add_argument("--llm_calls",  required=True, help="llm_call_log.json")
+    parser.add_argument("--results",    required=True, help="results.json  (produced by agent.py)")
+    parser.add_argument("--ca",         default="corporate_actions.json")
+    parser.add_argument("--fundamentals", default=None,
+                        help="fundamentals.json (optional — enables ESG integration bonus check)")
+    parser.add_argument("--output",     default=None,  help="Output JSON path")
+    args = parser.parse_args()
+
+    outcome = run(args)
+    sys.exit(0 if not outcome["disqualified"] else 1)
