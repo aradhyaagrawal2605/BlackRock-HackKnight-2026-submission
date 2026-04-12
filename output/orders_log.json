@@ -1,0 +1,134 @@
+[
+  {
+    "type": "execution",
+    "order_ref": "ord_E007_BUY_5227",
+    "ticker": "E007",
+    "side": "BUY",
+    "qty": 5227,
+    "exec_price": 93.74,
+    "fees": 490.98,
+    "ts": "2026-04-12T09:26:26.733938+00:00",
+    "tick_index": 1
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_A001_BUY_2087",
+    "ticker": "A001",
+    "side": "BUY",
+    "qty": 2087,
+    "exec_price": 234.69,
+    "fees": 490.8,
+    "ts": "2026-04-12T09:26:26.733963+00:00",
+    "tick_index": 1
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_A005_BUY_3810",
+    "ticker": "A005",
+    "side": "BUY",
+    "qty": 3810,
+    "exec_price": 128.59,
+    "fees": 490.93,
+    "ts": "2026-04-12T09:26:26.734004+00:00",
+    "tick_index": 1
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_D006_BUY_5021",
+    "ticker": "D006",
+    "side": "BUY",
+    "qty": 5021,
+    "exec_price": 97.59,
+    "fees": 491.0,
+    "ts": "2026-04-12T09:26:26.734014+00:00",
+    "tick_index": 1
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_B001_BUY_4137",
+    "ticker": "B001",
+    "side": "BUY",
+    "qty": 4137,
+    "exec_price": 118.44,
+    "fees": 490.99,
+    "ts": "2026-04-12T09:26:26.734026+00:00",
+    "tick_index": 1
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_B003_BUY_1828",
+    "ticker": "B003",
+    "side": "BUY",
+    "qty": 1828,
+    "exec_price": 114.84,
+    "fees": 210.93,
+    "ts": "2026-04-12T09:26:26.734034+00:00",
+    "tick_index": 1
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_D008_BUY_2390",
+    "ticker": "D008",
+    "side": "BUY",
+    "qty": 2390,
+    "exec_price": 83.66,
+    "fees": 200.95,
+    "ts": "2026-04-12T09:26:26.734045+00:00",
+    "tick_index": 1
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_B008_BUY_455",
+    "ticker": "B008",
+    "side": "BUY",
+    "qty": 455,
+    "exec_price": 109.8,
+    "fees": 50.96,
+    "ts": "2026-04-12T09:26:26.734056+00:00",
+    "tick_index": 1
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_C002_BUY_5",
+    "ticker": "C002",
+    "side": "BUY",
+    "qty": 5,
+    "exec_price": 170.1,
+    "fees": 1.85,
+    "ts": "2026-04-12T09:26:29.114897+00:00",
+    "tick_index": 22
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_A001_BUY_5",
+    "ticker": "A001",
+    "side": "BUY",
+    "qty": 5,
+    "exec_price": 235.88,
+    "fees": 2.18,
+    "ts": "2026-04-12T09:26:36.049467+00:00",
+    "tick_index": 90
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_E007_BUY_5",
+    "ticker": "E007",
+    "side": "BUY",
+    "qty": 5,
+    "exec_price": 95.93,
+    "fees": 1.48,
+    "ts": "2026-04-12T09:26:40.724373+00:00",
+    "tick_index": 200
+  },
+  {
+    "type": "execution",
+    "order_ref": "ord_B008_SELL_409",
+    "ticker": "B008",
+    "side": "SELL",
+    "qty": 409,
+    "exec_price": 115.07,
+    "fees": 48.06,
+    "ts": "2026-04-12T09:26:45.326906+00:00",
+    "tick_index": 280
+  }
+]

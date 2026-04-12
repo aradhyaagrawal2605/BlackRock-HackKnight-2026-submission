@@ -1,294 +1,244 @@
 """
-optimizer.py — Mean-Variance Portfolio Optimizer for BlackRock HackKnight 2026
+Hackathon@IITD2026 — Portfolio Optimizer
+======================================
+Mean-Variance Optimisation (MVO) using cvxpy.
 
-Implements Markowitz MVO with all hackathon constraints:
-  - Long-only (w >= 0)
-  - Fully invested (sum(w) == 1)
-  - Min position 0.5% if held
-  - Max 30 holdings (cardinality, TC004)
-  - Max 30% daily turnover (TC005)
-  - Max single position cap (default 15%)
+Maximises:  w^T * mu - gamma * w^T * Sigma * w
+Subject to:
+  - sum(w) == 1              (fully invested)
+  - w_i >= 0                 (long-only)
+  - w_i >= MIN_WEIGHT if held (minimum position size)
+  - count(w_i > 0) <= MAX_HOLDINGS  (cardinality constraint)
+  - sum(|w_i - w_prev_i|) <= TURNOVER_BUDGET  (turnover constraint)
 
-Uses cvxpy with OSQP solver for fast convex QP solving.
+Falls back to equal-weight if cvxpy is unavailable or optimization fails.
+
+Extend this file to improve your Sharpe:
+  - Tune gamma (risk aversion)
+  - Add sector concentration limits
+  - Add individual position max weights
+  - Use a better covariance estimator (Ledoit-Wolf shrinkage, etc.)
 """
 
-import numpy as np
-import cvxpy as cp
+import logging
+import math
 from typing import Optional
 
+import numpy as np
 
-# ---------------------------------------------------------------------------
-# Covariance estimation helpers
-# ---------------------------------------------------------------------------
+log = logging.getLogger("optimizer")
 
-def shrink_covariance(returns: np.ndarray, shrinkage: float = 0.1) -> np.ndarray:
-    """Ledoit-Wolf style shrinkage toward diagonal target."""
-    sample_cov = np.cov(returns, rowvar=True)
-    n = sample_cov.shape[0]
-    target = np.diag(np.diag(sample_cov))
-    shrunk = (1 - shrinkage) * sample_cov + shrinkage * target
-    shrunk = (shrunk + shrunk.T) / 2
-    min_eig = np.min(np.linalg.eigvalsh(shrunk))
-    if min_eig < 1e-8:
-        shrunk += (1e-8 - min_eig) * np.eye(n)
-    return shrunk
+# Try to import cvxpy — fall back gracefully if not available
+try:
+    import cvxpy as cp
+    CVXPY_AVAILABLE = True
+except ImportError:
+    log.warning("cvxpy not available — falling back to equal-weight optimizer")
+    CVXPY_AVAILABLE = False
 
-
-def ewma_covariance(returns: np.ndarray, lam: float = 0.94) -> np.ndarray:
-    """Exponentially weighted covariance matrix."""
-    T, n = returns.shape
-    weights = np.array([(1 - lam) * lam ** (T - 1 - t) for t in range(T)])
-    weights /= weights.sum()
-    mean_r = weights @ returns
-    centered = returns - mean_r
-    cov = (centered * weights[:, None]).T @ centered
-    cov = (cov + cov.T) / 2
-    min_eig = np.min(np.linalg.eigvalsh(cov))
-    if min_eig < 1e-8:
-        cov += (1e-8 - min_eig) * np.eye(n)
-    return cov
+# ─── Constants ────────────────────────────────────────────────────────────────
+GAMMA            = 1.0    # risk aversion parameter (higher = more conservative)
+MIN_HISTORY      = 5      # minimum ticks of price history required
+REGULARISATION   = 1e-4   # ridge regularisation on covariance diagonal
+MAX_SINGLE_WEIGHT = 0.15  # optional: max 15% in any single position
 
 
-# ---------------------------------------------------------------------------
-# Core MVO optimizer
-# ---------------------------------------------------------------------------
+class Optimizer:
+    def __init__(
+        self,
+        max_holdings: int = 30,
+        min_weight: float = 0.005,
+        gamma: float = GAMMA,
+        max_single_weight: float = MAX_SINGLE_WEIGHT,
+    ):
+        self.max_holdings       = max_holdings
+        self.min_weight         = min_weight
+        self.gamma              = gamma
+        self.max_single_weight  = max_single_weight
 
-def optimize_portfolio(
-    mu: np.ndarray,
-    Sigma: np.ndarray,
-    w_prev: Optional[np.ndarray] = None,
-    gamma: float = 1.0,
-    max_holdings: int = 30,
-    max_weight: float = 0.15,
-    min_weight: float = 0.005,
-    turnover_budget: Optional[float] = None,
-    current_turnover: float = 0.0,
-    solver: str = "OSQP",
-    eligible_mask: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    """
-    Solve the Markowitz MVO problem with hackathon constraints.
+    def optimise(
+        self,
+        tickers: list[str],
+        expected_returns: dict[str, float],
+        price_history: dict[str, list[float]],
+        current_weights: dict[str, float],
+        turnover_budget: float = 0.30,
+    ) -> dict[str, float]:
+        """
+        Run the optimizer and return target portfolio weights {ticker: weight}.
 
-    Parameters
-    ----------
-    mu : (n,) expected return vector
-    Sigma : (n, n) covariance matrix
-    w_prev : (n,) previous weights (for turnover constraint)
-    gamma : risk aversion parameter (higher = more conservative)
-    max_holdings : max number of nonzero positions (TC004)
-    max_weight : max weight for any single position
-    min_weight : min weight for any held position (0.5%)
-    turnover_budget : remaining turnover budget (fraction of 0.30)
-    current_turnover : turnover already consumed
-    solver : cvxpy solver name
-    eligible_mask : boolean array; False = forced to zero weight
+        Parameters
+        ----------
+        tickers          : list of all available tickers this tick
+        expected_returns : {ticker: expected log return}
+        price_history    : {ticker: [price_t-N, ..., price_t]}
+        current_weights  : {ticker: current weight in portfolio}
+        turnover_budget  : remaining fraction of portfolio that can be traded
 
-    Returns
-    -------
-    w_opt : (n,) optimal weight vector
-    """
-    n = len(mu)
+        Returns
+        -------
+        {ticker: target_weight}  — weights sum to 1, all >= 0
+        """
+        # Filter to tickers with sufficient price history
+        eligible = [
+            t for t in tickers
+            if len(price_history.get(t, [])) >= MIN_HISTORY
+        ]
 
-    if w_prev is None:
-        w_prev = np.zeros(n)
+        if len(eligible) < 2:
+            log.warning("Not enough tickers with price history — returning equal weight")
+            return self._equal_weight(eligible or tickers[:self.max_holdings])
 
-    if eligible_mask is None:
-        eligible_mask = np.ones(n, dtype=bool)
+        mu    = self._build_mu(eligible, expected_returns)
+        Sigma = self._build_covariance(eligible, price_history)
+        w_prev = np.array([current_weights.get(t, 0.0) for t in eligible])
 
-    remaining_turnover = max(0.0, 0.30 - current_turnover) if turnover_budget is None else turnover_budget
+        if CVXPY_AVAILABLE:
+            weights = self._cvxpy_optimise(mu, Sigma, w_prev, turnover_budget, len(eligible))
+        else:
+            weights = self._greedy_optimise(mu, Sigma, eligible)
 
-    # --- Two-stage solve: first select top assets, then optimize ---
-    # Stage 1: Rank assets by risk-adjusted attractiveness
-    sigma_diag = np.sqrt(np.diag(Sigma))
-    sigma_diag = np.where(sigma_diag < 1e-10, 1e-10, sigma_diag)
-    attractiveness = mu / sigma_diag
-    attractiveness[~eligible_mask] = -np.inf
+        # Map back to tickers and apply cardinality trim
+        result = dict(zip(eligible, weights))
+        result = self._apply_cardinality(result)
+        result = self._normalise(result)
+        return result
 
-    # Keep existing positions plus best new candidates
-    held_mask = w_prev > 1e-6
-    n_held = int(held_mask.sum())
-    n_new_slots = max(0, max_holdings - n_held)
+    # ── Build expected return vector ───────────────────────────────────────────
+    def _build_mu(self, tickers: list[str], expected_returns: dict[str, float]) -> np.ndarray:
+        return np.array([expected_returns.get(t, 0.0) for t in tickers])
 
-    candidate_scores = attractiveness.copy()
-    candidate_scores[held_mask] = -np.inf
-    new_indices = np.argsort(candidate_scores)[::-1][:n_new_slots]
+    # ── Build covariance matrix from log returns ───────────────────────────────
+    def _build_covariance(
+        self, tickers: list[str], price_history: dict[str, list[float]]
+    ) -> np.ndarray:
+        n = len(tickers)
+        returns_matrix = []
 
-    selected = held_mask.copy()
-    for idx in new_indices:
-        if eligible_mask[idx] and attractiveness[idx] > -np.inf:
-            selected[idx] = True
+        for t in tickers:
+            prices = price_history[t]
+            log_rets = [
+                math.log(prices[i] / prices[i - 1])
+                for i in range(1, len(prices))
+                if prices[i - 1] > 0
+            ]
+            returns_matrix.append(log_rets)
 
-    if selected.sum() == 0:
-        top_indices = np.argsort(attractiveness)[::-1][:max_holdings]
-        for idx in top_indices:
-            if eligible_mask[idx]:
-                selected[idx] = True
-        if selected.sum() == 0:
-            return np.ones(n) / n
+        # Align lengths (use the shortest series)
+        min_len = min(len(r) for r in returns_matrix)
+        if min_len < 2:
+            return np.eye(n) * 1e-4
 
-    selected_indices = np.where(selected)[0]
-    m = len(selected_indices)
+        R = np.array([r[-min_len:] for r in returns_matrix])  # shape: (n_tickers, T)
 
-    mu_sel = mu[selected_indices]
-    Sigma_sel = Sigma[np.ix_(selected_indices, selected_indices)]
-    w_prev_sel = w_prev[selected_indices]
+        # Sample covariance
+        Sigma = np.cov(R)
 
-    Sigma_sel = (Sigma_sel + Sigma_sel.T) / 2
-    min_eig = np.min(np.linalg.eigvalsh(Sigma_sel))
-    if min_eig < 1e-8:
-        Sigma_sel += (1e-8 - min_eig) * np.eye(m)
+        # Ledoit-Wolf-style diagonal regularisation (shrinkage toward identity)
+        avg_var = np.trace(Sigma) / n
+        Sigma   = Sigma + REGULARISATION * avg_var * np.eye(n)
 
-    # Stage 2: Convex optimization on selected subset
-    w = cp.Variable(m, nonneg=True)
-    portfolio_return = mu_sel @ w
-    portfolio_risk = cp.quad_form(w, Sigma_sel)
-    objective = cp.Maximize(portfolio_return - gamma * portfolio_risk)
+        return Sigma
 
-    constraints = [
-        cp.sum(w) == 1,
-        w <= max_weight,
-    ]
+    # ── cvxpy solver ──────────────────────────────────────────────────────────
+    def _cvxpy_optimise(
+        self,
+        mu: np.ndarray,
+        Sigma: np.ndarray,
+        w_prev: np.ndarray,
+        turnover_budget: float,
+        n: int,
+    ) -> np.ndarray:
+        w = cp.Variable(n, nonneg=True)
 
-    if remaining_turnover < 0.30:
-        constraints.append(
-            cp.sum(cp.abs(w - w_prev_sel)) <= remaining_turnover
-        )
+        objective = cp.Maximize(mu @ w - self.gamma * cp.quad_form(w, Sigma))
 
-    try:
+        constraints = [
+            cp.sum(w) <= 1,                              # allow partial investment (cash)
+            w <= self.max_single_weight,                 # max single position
+            cp.sum(cp.abs(w - w_prev)) <= turnover_budget,  # turnover limit
+        ]
+
         prob = cp.Problem(objective, constraints)
-        prob.solve(solver=solver, warm_start=True, max_iter=5000)
 
-        if prob.status in ("infeasible", "unbounded", None) or w.value is None:
-            prob.solve(solver="SCS", max_iters=5000)
+        try:
+            prob.solve(solver=cp.OSQP, warm_start=True, verbose=False)
+        except Exception as exc:
+            log.warning(f"OSQP failed ({exc}), trying SCS")
+            try:
+                prob.solve(solver=cp.SCS, verbose=False)
+            except Exception as exc2:
+                log.warning(f"SCS also failed ({exc2}) — falling back to equal weight")
+                return self._equal_weight_array(n)
 
-        if w.value is not None:
-            w_opt_sel = np.array(w.value).flatten()
-            w_opt_sel = np.maximum(w_opt_sel, 0)
-            small_mask = (w_opt_sel > 0) & (w_opt_sel < min_weight)
-            w_opt_sel[small_mask] = 0
-            if w_opt_sel.sum() > 0:
-                w_opt_sel /= w_opt_sel.sum()
-            else:
-                w_opt_sel = np.ones(m) / m
+        if prob.status not in ("optimal", "optimal_inaccurate") or w.value is None:
+            log.warning(f"Optimizer status: {prob.status} — falling back to equal weight")
+            return self._equal_weight_array(n)
+
+        weights = np.clip(w.value, 0, None)
+
+        # Zero out tiny weights (below min_weight)
+        weights[weights < self.min_weight * 0.5] = 0.0
+
+        total = weights.sum()
+        if total < 1e-8:
+            return self._equal_weight_array(n)
+
+        return weights / total
+
+    # ── Greedy fallback (no cvxpy) ─────────────────────────────────────────────
+    def _greedy_optimise(
+        self,
+        mu: np.ndarray,
+        Sigma: np.ndarray,
+        tickers: list[str],
+    ) -> np.ndarray:
+        """
+        Simple greedy: rank by Sharpe-like score (mu / sigma), take top K.
+        Not optimal but respects cardinality and is fast.
+        """
+        n = len(tickers)
+        sigmas = np.sqrt(np.diag(Sigma))
+        sigmas = np.where(sigmas < 1e-8, 1e-8, sigmas)
+        scores = mu / sigmas
+
+        k = min(self.max_holdings, n)
+        top_k = np.argsort(scores)[-k:]
+
+        weights = np.zeros(n)
+        positive_scores = np.maximum(scores[top_k], 0)
+        total = positive_scores.sum()
+
+        if total < 1e-8:
+            weights[top_k] = 1.0 / k
         else:
-            w_opt_sel = _fallback_weights(mu_sel, m)
-    except Exception:
-        w_opt_sel = _fallback_weights(mu_sel, m)
+            weights[top_k] = positive_scores / total
 
-    w_full = np.zeros(n)
-    w_full[selected_indices] = w_opt_sel
-    return w_full
+        return weights
 
+    # ── Cardinality enforcement ────────────────────────────────────────────────
+    def _apply_cardinality(self, weights: dict[str, float]) -> dict[str, float]:
+        """Keep only the top MAX_HOLDINGS positions by weight."""
+        if len(weights) <= self.max_holdings:
+            return weights
+        sorted_items = sorted(weights.items(), key=lambda x: x[1], reverse=True)
+        kept = dict(sorted_items[: self.max_holdings])
+        return kept
 
-def _fallback_weights(mu: np.ndarray, n: int) -> np.ndarray:
-    """Simple fallback: inverse-volatility weighting biased toward high-mu assets."""
-    if n == 0:
-        return np.array([])
-    scores = mu - mu.min() + 1e-6
-    w = scores / scores.sum()
-    return w
+    # ── Normalise weights to sum to 1 ─────────────────────────────────────────
+    def _normalise(self, weights: dict[str, float]) -> dict[str, float]:
+        total = sum(weights.values())
+        if total < 1e-8:
+            tickers = list(weights.keys())
+            return {t: 1.0 / len(tickers) for t in tickers}
+        return {t: w / total for t, w in weights.items()}
 
+    # ── Equal weight helpers ───────────────────────────────────────────────────
+    def _equal_weight(self, tickers: list[str]) -> dict[str, float]:
+        if not tickers:
+            return {}
+        w = 1.0 / len(tickers)
+        return {t: w for t in tickers}
 
-# ---------------------------------------------------------------------------
-# Convenience: compute turnover from weight change
-# ---------------------------------------------------------------------------
-
-def compute_turnover(w_new: np.ndarray, w_old: np.ndarray) -> float:
-    """Sum of absolute weight changes."""
-    return float(np.sum(np.abs(w_new - w_old)))
-
-
-# ---------------------------------------------------------------------------
-# Convenience: target weights -> order quantities
-# ---------------------------------------------------------------------------
-
-def weights_to_quantities(
-    weights: np.ndarray,
-    portfolio_value: float,
-    prices: np.ndarray,
-) -> np.ndarray:
-    """Convert target weights to integer share quantities."""
-    target_values = weights * portfolio_value
-    safe_prices = np.where(prices > 0, prices, 1e10)
-    quantities = np.floor(target_values / safe_prices).astype(int)
-    return quantities
-
-
-# ---------------------------------------------------------------------------
-# Adaptive gamma selection based on market regime
-# ---------------------------------------------------------------------------
-
-def adaptive_gamma(
-    recent_returns: np.ndarray,
-    base_gamma: float = 1.0,
-    vol_lookback: int = 20,
-) -> float:
-    """
-    Increase risk aversion when recent volatility is high (risk-off),
-    decrease when volatility is low (risk-on).
-    """
-    if len(recent_returns) < 5:
-        return base_gamma
-    recent_vol = np.std(recent_returns[-vol_lookback:])
-    long_vol = np.std(recent_returns) if len(recent_returns) > vol_lookback else recent_vol
-    if long_vol < 1e-10:
-        return base_gamma
-    vol_ratio = recent_vol / long_vol
-    return base_gamma * max(0.5, min(3.0, vol_ratio))
-
-
-# ---------------------------------------------------------------------------
-# Max-Sharpe variant (risk-free rate = 0)
-# ---------------------------------------------------------------------------
-
-def optimize_max_sharpe(
-    mu: np.ndarray,
-    Sigma: np.ndarray,
-    eligible_mask: Optional[np.ndarray] = None,
-    max_holdings: int = 30,
-    max_weight: float = 0.15,
-) -> np.ndarray:
-    """
-    Max-Sharpe portfolio via the Cornuejols-Tutuncu variable substitution.
-    Solves: min y'Sigma y  s.t. mu'y = 1, y >= 0, then w = y / sum(y).
-    """
-    n = len(mu)
-    if eligible_mask is None:
-        eligible_mask = np.ones(n, dtype=bool)
-
-    sigma_diag = np.sqrt(np.diag(Sigma))
-    sigma_diag = np.where(sigma_diag < 1e-10, 1e-10, sigma_diag)
-    attractiveness = mu / sigma_diag
-    attractiveness[~eligible_mask] = -np.inf
-    top_idx = np.argsort(attractiveness)[::-1][:max_holdings]
-    top_idx = top_idx[eligible_mask[top_idx]]
-
-    if len(top_idx) == 0:
-        return np.ones(n) / n
-
-    mu_sel = mu[top_idx]
-    Sigma_sel = Sigma[np.ix_(top_idx, top_idx)]
-    Sigma_sel = (Sigma_sel + Sigma_sel.T) / 2
-    min_eig = np.min(np.linalg.eigvalsh(Sigma_sel))
-    if min_eig < 1e-8:
-        Sigma_sel += (1e-8 - min_eig) * np.eye(len(top_idx))
-
-    m = len(top_idx)
-    y = cp.Variable(m, nonneg=True)
-    constraints = [mu_sel @ y == 1, y <= max_weight * cp.sum(y)]
-
-    try:
-        prob = cp.Problem(cp.Minimize(cp.quad_form(y, Sigma_sel)), constraints)
-        prob.solve(solver="OSQP", max_iter=5000)
-        if y.value is not None and np.sum(y.value) > 1e-10:
-            w_sel = np.array(y.value).flatten()
-            w_sel = np.maximum(w_sel, 0)
-            w_sel /= w_sel.sum()
-        else:
-            w_sel = np.ones(m) / m
-    except Exception:
-        w_sel = np.ones(m) / m
-
-    w_full = np.zeros(n)
-    w_full[top_idx] = w_sel
-    return w_full
+    def _equal_weight_array(self, n: int) -> np.ndarray:
+        return np.full(n, 1.0 / n)

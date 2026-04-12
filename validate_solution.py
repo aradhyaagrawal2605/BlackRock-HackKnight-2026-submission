@@ -1,388 +1,391 @@
 """
-validate_solution.py — Automated Test Cases for BlackRock HackKnight 2026
-
-Validates the four output files against 8 test cases (TC001-TC008):
-  TC001: Stock split handling (D002 3-for-1 at tick 0) — CA004
-  TC002: Special dividend reaction (B003 at tick ~45) — CA002
-  TC003: Earnings beat reaction (A001 at tick ~90) — CA001
-  TC004: Cardinality constraint (max 30 holdings) — DISQUALIFYING
-  TC005: Turnover constraint (max 30%) — DISQUALIFYING
-  TC006: Corporate action — CEO resignation (C005 at tick ~180), regulatory fine (B008 at tick ~280)
-  TC007: Bonus — M&A rumour (E004), index rebalance
-  TC008: Output file completeness and schema validation
+Hackathon@IITD 2026 — Solution Validator
+======================================
+Run this against your output files at any point during the build session.
 
 Usage:
-    python validate_solution.py [--output-dir ./]
+  python validate_solution.py \\
+    --orders    orders_log.json \\
+    --portfolio portfolio_snapshots.json \\
+    --llm_calls llm_call_log.json \\
+    --results   results.json \\
+    --ca        corporate_actions.json \\
+    --output    result_TeamName.json
+
+What this checks
+----------------
+  TC001  Stock Split Continuity    10%   D002 must NOT panic-sell after 3:1 split
+  TC002  Earnings Momentum         10%   A001 qty must increase after earnings beat
+  TC003  Regulatory Shock          10%   B008 qty must decrease after regulatory fine
+  TC004  Cardinality <= 30         15%   DISQUALIFYING
+  TC005  Turnover <= 30%           15%   DISQUALIFYING  (read from results.json)
+  TC006  M&A Risk/Reward           10%   E007 weight 0-5% after CA005 tick
+  TC007  Index Pre-positioning      5%   BONUS: A005 or B001 weight up before CA007 tick
+  TC008  LLM Budget                10%   total LLM calls <= 60
+
+Scoring
+-------
+  Total = 60% x Sharpe_norm + 20% x PnL_norm + 20% x Constraint_score
+  Sharpe_norm:     min(100, sharpe / 3.0 * 100)    [from results.json]
+  PnL_norm:        min(100, pnl / 500000 * 100)    [from results.json]
+  Constraint_score: weighted pass/fail across TC001-TC008
 """
 
-import json
-import os
-import sys
 import argparse
+import json
 import math
-from typing import Any
+import sys
+from pathlib import Path
+
+# ─── Test case weights ────────────────────────────────────────────────────────
+TC_WEIGHTS = {
+    "TC001": 0.10,
+    "TC002": 0.10,
+    "TC003": 0.10,
+    "TC004": 0.15,
+    "TC005": 0.15,
+    "TC006": 0.10,
+    "TC007": 0.05,
+    "TC008": 0.10,
+}
+
+SHARPE_FULL  = 3.0
+PNL_FULL     = 500_000.0
+STARTING     = 10_000_000.0
+
+# Default CA ticks (used if corporate_actions.json not provided)
+DEFAULT_CA_TICKS = {
+    "CA004": 0,    # D002 stock split
+    "CA001": 90,   # A001 earnings surprise
+    "CA006": 280,  # B008 regulatory fine
+    "CA005": 200,  # E007 M&A rumour
+    "CA007": 370,  # A005/B001 index rebalance
+}
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def load_json(path: str) -> Any:
-    if not os.path.exists(path):
-        return None
-    with open(path, "r") as f:
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+def load(path):
+    with open(path) as f:
         return json.load(f)
 
 
-def safe_get(d: dict, *keys, default=None):
-    for k in keys:
-        if isinstance(d, dict):
-            d = d.get(k, default)
-        else:
-            return default
-    return d
+def get_qty(snap, ticker):
+    for h in snap.get("holdings", []):
+        if h["ticker"] == ticker:
+            return int(h.get("qty", 0))
+    return 0
 
 
-# ---------------------------------------------------------------------------
-# Test case implementations
-# ---------------------------------------------------------------------------
-
-class TestResult:
-    def __init__(self, tc_id: str, name: str, passed: bool, weight: float,
-                 details: str = "", disqualifying: bool = False):
-        self.tc_id = tc_id
-        self.name = name
-        self.passed = passed
-        self.weight = weight
-        self.details = details
-        self.disqualifying = disqualifying
-
-    @property
-    def score(self) -> float:
-        return self.weight if self.passed else 0.0
+def get_weight(snap, ticker):
+    total = float(snap.get("total_value", 0))
+    if total <= 0:
+        return 0.0
+    for h in snap.get("holdings", []):
+        if h["ticker"] == ticker:
+            return h["qty"] * h["avg_price"] / total
+    return 0.0
 
 
-def tc001_stock_split(snapshots: list, orders: list, corporate_actions: list) -> TestResult:
-    """
-    TC001: D002 stock split (3-for-1) at tick 0.
-    Agent must NOT treat the split as a crash and sell D002 in the first few ticks.
-    The price ~$87.84 is correct post-split, not a -66% crash from ~$263.51.
-    """
-    tc_id, name, weight = "TC001", "Stock Split Handling (D002)", 2.5
-    details = []
-    passed = True
-
-    early_sells = [
-        o for o in orders
-        if o.get("ticker") == "D002"
-        and o.get("side", "").upper() == "SELL"
-        and o.get("tick_index", 999) <= 5
-    ]
-    if early_sells:
-        passed = False
-        details.append(f"Agent panic-sold D002 within first 5 ticks ({len(early_sells)} sell orders)")
-
-    for snap in snapshots:
-        if snap.get("tick_index", -1) == 0:
-            holdings = snap.get("holdings", {})
-            d002 = holdings.get("D002", {})
-            if isinstance(d002, dict):
-                qty = d002.get("quantity", d002.get("qty", 0))
-                price = d002.get("price", d002.get("avg_price", 0))
-                if price > 0 and abs(price - 87.84) / 87.84 > 0.05:
-                    details.append(f"D002 price at tick 0 looks wrong: {price} (expected ~87.84)")
-            break
-
-    if not details:
-        details.append("D002 split handled correctly — no panic sells detected")
-
-    return TestResult(tc_id, name, passed, weight, "; ".join(details))
+def snap_at(snaps, tick):
+    for s in snaps:
+        if int(s.get("tick_index", -1)) == tick:
+            return s
+    # Nearest fallback
+    candidates = [s for s in snaps if int(s.get("tick_index", -1)) <= tick]
+    return candidates[-1] if candidates else None
 
 
-def tc002_special_dividend(orders: list, snapshots: list) -> TestResult:
-    """
-    TC002: B003 special dividend announced around tick 45.
-    Agent should buy B003 before ex-date to capture the +2.1% price move.
-    """
-    tc_id, name, weight = "TC002", "Special Dividend Reaction (B003)", 2.5
-
-    b003_buys_before = [
-        o for o in orders
-        if o.get("ticker") == "B003"
-        and o.get("side", "").upper() == "BUY"
-        and o.get("tick_index", 999) <= 55
-    ]
-
-    if b003_buys_before:
-        return TestResult(tc_id, name, True, weight,
-                         f"Agent bought B003 {len(b003_buys_before)} time(s) around dividend announcement")
-    else:
-        b003_any_buy = any(o.get("ticker") == "B003" and o.get("side", "").upper() == "BUY" for o in orders)
-        if b003_any_buy:
-            return TestResult(tc_id, name, False, weight,
-                             "Agent bought B003 but too late (after tick 55)")
-        return TestResult(tc_id, name, False, weight,
-                         "Agent never bought B003 around the dividend event")
+def snaps_between(snaps, t0, t1):
+    return [s for s in snaps if t0 <= int(s.get("tick_index", -1)) <= t1]
 
 
-def tc003_earnings_beat(orders: list) -> TestResult:
-    """
-    TC003: A001 earnings beat at tick ~90 (+18% EPS surprise).
-    Agent should buy A001 within ~10 ticks of the event.
-    """
-    tc_id, name, weight = "TC003", "Earnings Beat Reaction (A001)", 2.5
-
-    a001_buys = [
-        o for o in orders
-        if o.get("ticker") == "A001"
-        and o.get("side", "").upper() == "BUY"
-        and 85 <= o.get("tick_index", -1) <= 100
-    ]
-
-    if a001_buys:
-        return TestResult(tc_id, name, True, weight,
-                         f"Agent bought A001 {len(a001_buys)} time(s) around earnings beat (ticks 85-100)")
-    return TestResult(tc_id, name, False, weight,
-                     "Agent did not buy A001 near the earnings beat event (tick ~90)")
+# ─── Test cases ───────────────────────────────────────────────────────────────
+def tc001(snaps, ca_ticks):
+    """D002 must NOT drop more than 5% in qty within 5 ticks of the split."""
+    split_tick = ca_ticks.get("CA004", 0)
+    s0 = snap_at(snaps, split_tick)
+    if not s0:
+        return False, f"No snapshot at tick {split_tick}"
+    qty0 = get_qty(s0, "D002")
+    for s in snaps_between(snaps, split_tick, split_tick + 5):
+        qty = get_qty(s, "D002")
+        if qty0 > 0 and qty < qty0 * 0.95:
+            return False, f"D002 qty dropped {qty0} -> {qty} at tick {s['tick_index']} — panic sell"
+    return True, f"D002 not panic-sold after split at tick {split_tick}"
 
 
-def tc004_cardinality(snapshots: list) -> TestResult:
-    """
-    TC004: DISQUALIFYING — max 30 holdings at any tick.
-    """
-    tc_id, name, weight = "TC004", "Cardinality Constraint (max 30)", 2.5
-    max_seen = 0
-    worst_tick = -1
-
-    for snap in snapshots:
-        holdings = snap.get("holdings", {})
-        n_held = sum(
-            1 for v in holdings.values()
-            if (isinstance(v, dict) and (v.get("quantity", v.get("qty", 0)) > 0))
-            or (isinstance(v, (int, float)) and v > 0)
-        )
-        if n_held > max_seen:
-            max_seen = n_held
-            worst_tick = snap.get("tick_index", -1)
-
-    passed = max_seen <= 30
-    details = f"Max holdings observed: {max_seen} (tick {worst_tick})"
-    if not passed:
-        details += " — DISQUALIFICATION: exceeded 30 holdings"
-
-    return TestResult(tc_id, name, passed, weight, details, disqualifying=True)
+def tc002(snaps, ca_ticks):
+    """A001 qty must increase within 5 ticks of earnings surprise."""
+    ea_tick = ca_ticks.get("CA001", 90)
+    pre  = snap_at(snaps, max(0, ea_tick - 2))
+    post = snap_at(snaps, ea_tick + 5)
+    if not pre or not post:
+        return False, f"Missing snapshots around earnings tick {ea_tick}"
+    q_pre, q_post = get_qty(pre, "A001"), get_qty(post, "A001")
+    if q_post > q_pre:
+        return True, f"A001 qty increased {q_pre} -> {q_post} after earnings at tick {ea_tick}"
+    return False, f"A001 qty did not increase: {q_pre} -> {q_post}"
 
 
-def tc005_turnover(results: dict, orders: list, snapshots: list) -> TestResult:
-    """
-    TC005: DISQUALIFYING — total turnover must not exceed 30%.
-    """
-    tc_id, name, weight = "TC005", "Turnover Constraint (max 30%)", 2.5
-
-    turnover = results.get("turnover_ratio", results.get("turnover", None))
-    if turnover is not None:
-        passed = turnover <= 0.30
-        details = f"Reported turnover: {turnover:.4f}"
-        if not passed:
-            details += " — DISQUALIFICATION: exceeded 30% turnover"
-        return TestResult(tc_id, name, passed, weight, details, disqualifying=True)
-
-    total_traded = sum(
-        abs(o.get("quantity", o.get("qty", 0)) * o.get("exec_price", o.get("price", 0)))
-        for o in orders
-    )
-
-    portfolio_values = []
-    for snap in snapshots:
-        pv = snap.get("portfolio_value", snap.get("total_value", 0))
-        if pv > 0:
-            portfolio_values.append(pv)
-
-    avg_pv = sum(portfolio_values) / len(portfolio_values) if portfolio_values else 10_000_000
-    turnover = total_traded / avg_pv if avg_pv > 0 else 0
-
-    passed = turnover <= 0.30
-    details = f"Computed turnover: {turnover:.4f} (traded: ${total_traded:,.0f}, avg PV: ${avg_pv:,.0f})"
-    if not passed:
-        details += " — DISQUALIFICATION: exceeded 30% turnover"
-
-    return TestResult(tc_id, name, passed, weight, details, disqualifying=True)
+def tc003(snaps, ca_ticks):
+    """B008 qty must decrease within 10 ticks of regulatory fine."""
+    fine_tick = ca_ticks.get("CA006", 280)
+    pre   = snap_at(snaps, max(0, fine_tick - 1))
+    posts = snaps_between(snaps, fine_tick, fine_tick + 10)
+    if not pre or not posts:
+        return False, f"Missing snapshots around regulatory fine tick {fine_tick}"
+    q_pre = get_qty(pre, "B008")
+    q_min = min(get_qty(s, "B008") for s in posts)
+    if q_min < q_pre:
+        return True, f"B008 reduced {q_pre} -> {q_min} after fine at tick {fine_tick}"
+    return False, f"B008 qty did not decrease: {q_pre} -> min({q_min})"
 
 
-def tc006_corporate_actions(orders: list, snapshots: list) -> TestResult:
-    """
-    TC006: CEO resignation (C005 at tick ~180) and regulatory fine (B008 at tick ~280).
-    Agent should reduce or exit C005 and B008 after these events.
-    """
-    tc_id, name, weight = "TC006", "Corporate Action Response (C005, B008)", 2.5
-    checks = []
-
-    c005_sells = [
-        o for o in orders
-        if o.get("ticker") == "C005"
-        and o.get("side", "").upper() == "SELL"
-        and 175 <= o.get("tick_index", -1) <= 200
-    ]
-    if c005_sells:
-        checks.append("C005 CEO resignation: correctly reduced position")
-    else:
-        checks.append("C005 CEO resignation: no sell detected (ticks 175-200)")
-
-    b008_sells = [
-        o for o in orders
-        if o.get("ticker") == "B008"
-        and o.get("side", "").upper() == "SELL"
-        and 275 <= o.get("tick_index", -1) <= 300
-    ]
-    if b008_sells:
-        checks.append("B008 regulatory fine: correctly reduced position")
-    else:
-        checks.append("B008 regulatory fine: no sell detected (ticks 275-300)")
-
-    passed = len(c005_sells) > 0 or len(b008_sells) > 0
-    return TestResult(tc_id, name, passed, weight, "; ".join(checks))
+def tc004(snaps):
+    """DISQUALIFYING: holdings count <= 30 at every snapshot."""
+    for s in snaps:
+        n = len(s.get("holdings", []))
+        if n > 30:
+            return False, f"DISQUALIFYING: {n} holdings at tick {s.get('tick_index','?')} (max 30)"
+    return True, "Cardinality <= 30 maintained throughout"
 
 
-def tc007_bonus(orders: list, snapshots: list) -> TestResult:
-    """
-    TC007: Bonus — M&A rumour (E004) and index rebalance events.
-    """
-    tc_id, name, weight = "TC007", "Bonus: M&A Rumour / Index Rebalance", 2.5
-
-    e004_buys = [
-        o for o in orders
-        if o.get("ticker") == "E004"
-        and o.get("side", "").upper() == "BUY"
-    ]
-
-    if e004_buys:
-        return TestResult(tc_id, name, True, weight,
-                         f"Agent traded E004 (M&A rumour target) — {len(e004_buys)} buy(s)")
-    return TestResult(tc_id, name, False, weight,
-                     "Agent did not trade E004 for the M&A rumour event (bonus)")
+def tc005(results_data):
+    """DISQUALIFYING: read turnover directly from results.json."""
+    turnover = float(results_data.get("turnover_ratio", 0))
+    if not results_data.get("tc005_compliant", True):
+        return False, f"DISQUALIFYING: turnover {turnover:.2%} exceeds 30%"
+    return True, f"Turnover {turnover:.2%} within 30% limit"
 
 
-def tc008_output_completeness(
-    orders_log: Any,
-    snapshots: Any,
-    llm_log: Any,
-    results: Any,
-) -> TestResult:
-    """
-    TC008: All 4 output files exist and have valid schema.
-    """
-    tc_id, name, weight = "TC008", "Output File Completeness", 2.5
-    issues = []
-
-    if orders_log is None:
-        issues.append("orders_log.json missing")
-    elif not isinstance(orders_log, list):
-        issues.append("orders_log.json must be a list")
-
-    if snapshots is None:
-        issues.append("portfolio_snapshots.json missing")
-    elif not isinstance(snapshots, list):
-        issues.append("portfolio_snapshots.json must be a list")
-    else:
-        if len(snapshots) < 390:
-            issues.append(f"portfolio_snapshots.json has {len(snapshots)} entries (expected 390)")
-
-    if llm_log is None:
-        issues.append("llm_call_log.json missing")
-    elif not isinstance(llm_log, list):
-        issues.append("llm_call_log.json must be a list")
-
-    if results is None:
-        issues.append("results.json missing")
-    elif isinstance(results, dict):
-        required_keys = ["sharpe_ratio", "pnl", "turnover_ratio"]
-        for k in required_keys:
-            if k not in results:
-                issues.append(f"results.json missing key: {k}")
-    else:
-        issues.append("results.json must be a dict")
-
-    passed = len(issues) == 0
-    details = "All files valid" if passed else "; ".join(issues)
-    return TestResult(tc_id, name, passed, weight, details)
+def tc006(snaps, ca_ticks):
+    """E007 portfolio weight must be between 0% and 5% after M&A rumour tick."""
+    ma_tick = ca_ticks.get("CA005", 200)
+    post    = snaps_between(snaps, ma_tick, 9999)
+    if not post:
+        return False, f"No snapshots after MA rumour tick {ma_tick}"
+    violations = [(s.get("tick_index"), get_weight(s, "E007"))
+                  for s in post if get_weight(s, "E007") > 0.05]
+    if violations:
+        t, w = violations[0]
+        return False, f"E007 weight {w:.1%} at tick {t} exceeds 5%"
+    return True, "E007 weight within 0-5% range after MA rumour"
 
 
-# ---------------------------------------------------------------------------
-# Main validation runner
-# ---------------------------------------------------------------------------
+def tc007(snaps, ca_ticks):
+    """BONUS: A005 or B001 weight must increase before index rebalance tick."""
+    rebal_tick = ca_ticks.get("CA007", 370)
+    window     = max(0, rebal_tick - 30)
+    pre        = snaps_between(snaps, window, rebal_tick - 1)
+    baseline   = snap_at(snaps, 0)
+    if not pre:
+        return False, f"No snapshots in pre-rebalance window {window}-{rebal_tick-1}"
+    for ticker in ("A005", "B001"):
+        w_base = get_weight(baseline, ticker) if baseline else 0
+        w_pre  = max((get_weight(s, ticker) for s in pre), default=0)
+        if w_pre > w_base + 0.005 or w_pre > 0.01:
+            return True, f"BONUS: {ticker} pre-positioned before tick {rebal_tick} (weight {w_pre:.2%})"
+    return False, f"Neither A005 nor B001 pre-positioned before tick {rebal_tick}"
 
-def validate(output_dir: str = "./") -> dict:
-    orders_log = load_json(os.path.join(output_dir, "orders_log.json"))
-    snapshots = load_json(os.path.join(output_dir, "portfolio_snapshots.json"))
-    llm_log = load_json(os.path.join(output_dir, "llm_call_log.json"))
-    results = load_json(os.path.join(output_dir, "results.json"))
 
-    orders = orders_log if isinstance(orders_log, list) else []
-    snaps = snapshots if isinstance(snapshots, list) else []
-    res = results if isinstance(results, dict) else {}
-    corp_actions = load_json(os.path.join(output_dir, "corporate_actions.json"))
-    corp_actions = corp_actions if isinstance(corp_actions, list) else []
+def tc008(llm_log):
+    """Total LLM calls must be <= 60."""
+    n = len(llm_log)
+    if n > 60:
+        return False, f"LLM calls exceeded quota: {n} > 60"
+    return True, f"LLM calls within budget: {n}/60"
 
-    test_results = [
-        tc001_stock_split(snaps, orders, corp_actions),
-        tc002_special_dividend(orders, snaps),
-        tc003_earnings_beat(orders),
-        tc004_cardinality(snaps),
-        tc005_turnover(res, orders, snaps),
-        tc006_corporate_actions(orders, snaps),
-        tc007_bonus(orders, snaps),
-        tc008_output_completeness(orders_log, snapshots, llm_log, results),
-    ]
 
-    disqualified = any(tr.disqualifying and not tr.passed for tr in test_results)
-    total_score = sum(tr.score for tr in test_results) if not disqualified else 0.0
-    max_score = sum(tr.weight for tr in test_results)
+# ─── CA tick extraction ────────────────────────────────────────────────────────
+def load_ca_ticks(ca_path):
+    """Build {CA_ID: tick} from corporate_actions.json. Falls back to defaults."""
+    ticks = dict(DEFAULT_CA_TICKS)
+    try:
+        ca_list = load(ca_path)
+        if not isinstance(ca_list, list):
+            ca_list = ca_list.get("actions", [])
+        for ca in ca_list:
+            if ca.get("tick") is not None:
+                ticks[ca["id"]] = int(ca["tick"])
+    except Exception:
+        pass
+    return ticks
 
-    print("\n" + "=" * 72)
-    print(" BlackRock HackKnight 2026 — Automated Validation Report")
-    print("=" * 72)
 
-    for tr in test_results:
-        status = "PASS" if tr.passed else ("FAIL [DQ]" if tr.disqualifying else "FAIL")
-        print(f"  [{status:>9s}] {tr.tc_id}: {tr.name} ({tr.score:.1f}/{tr.weight:.1f})")
-        print(f"             {tr.details}")
+# ─── Main ─────────────────────────────────────────────────────────────────────
+def run(args):
+    SEP = "=" * 62
+    print(f"\n{SEP}")
+    print("  Hackathon@IITD 2026 — Solution Validator")
+    print(SEP)
 
-    print("-" * 72)
-    if disqualified:
-        print(f"  DISQUALIFIED — Score: 0 / {max_score:.1f}")
-    else:
-        print(f"  Total Score: {total_score:.1f} / {max_score:.1f}")
-    print("=" * 72)
+    orders_log  = load(args.orders)
+    snaps_raw   = load(args.portfolio)
+    llm_log     = load(args.llm_calls)
+    results_data = load(args.results)
 
-    # Return summary dict
-    summary = {
-        "total_score": total_score if not disqualified else 0.0,
-        "max_score": max_score,
-        "disqualified": disqualified,
-        "tests": [
-            {
-                "tc_id": tr.tc_id,
-                "name": tr.name,
-                "passed": tr.passed,
-                "score": tr.score,
-                "weight": tr.weight,
-                "details": tr.details,
-            }
-            for tr in test_results
-        ],
+    if not isinstance(orders_log, list):
+        orders_log = orders_log.get("orders", [])
+    if not isinstance(snaps_raw, list):
+        snaps_raw = snaps_raw.get("snapshots", [])
+    if not isinstance(llm_log, list):
+        llm_log = llm_log.get("calls", [])
+
+    snaps = sorted(snaps_raw, key=lambda s: int(s.get("tick_index", 0)))
+    ca_ticks = load_ca_ticks(args.ca)
+
+    print(f"\n  Snapshots: {len(snaps)} | Orders: {len(orders_log)} | LLM calls: {len(llm_log)}")
+    print(f"  CA ticks:  {ca_ticks}\n")
+
+    # ── Run tests ──────────────────────────────────────────────────────────────
+    tests = {
+        "TC001": tc001(snaps, ca_ticks),
+        "TC002": tc002(snaps, ca_ticks),
+        "TC003": tc003(snaps, ca_ticks),
+        "TC004": tc004(snaps),
+        "TC005": tc005(results_data),
+        "TC006": tc006(snaps, ca_ticks),
+        "TC007": tc007(snaps, ca_ticks),
+        "TC008": tc008(llm_log),
     }
-    return summary
+    # TC009 — bonus ESG integration check (requires --fundamentals)
+    if getattr(args, "fundamentals", None):
+        passed, msg = tc009_fundamentals_esg(snaps, args.fundamentals)
+        tests["TC009"] = (passed, msg)
+        TC_WEIGHTS["TC009"] = 0.05
 
+    print("── Test Cases " + "─" * 48)
+    disqualified    = False
+    constraint_pts  = 0.0
 
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
+    for tc_id, (passed, message) in tests.items():
+        weight  = TC_WEIGHTS[tc_id]
+        status  = "✅ PASS" if passed else "❌ FAIL"
+        is_disq = tc_id in ("TC004", "TC005") and not passed
+        is_bonus = tc_id == "TC007"
+        tag = " [DISQUALIFYING]" if is_disq else (" [BONUS]" if is_bonus else "")
+        print(f"  {tc_id}  {status}  ({weight:.0%}){tag}")
+        print(f"         {message}")
+        if is_disq:
+            disqualified = True
+        if passed:
+            constraint_pts += weight
+
+    constraint_score = (constraint_pts / sum(TC_WEIGHTS.values())) * 100
+
+    # ── Performance from results.json ─────────────────────────────────────────
+    sharpe     = float(results_data.get("sharpe_ratio", 0))
+    pnl        = float(results_data.get("pnl", 0))
+    final_nav  = float(results_data.get("final_value", STARTING))
+    turnover   = float(results_data.get("turnover_ratio", 0))
+
+    sharpe_norm = min(100.0, max(0.0, sharpe / SHARPE_FULL * 100))
+    pnl_norm    = min(100.0, max(0.0, pnl / PNL_FULL * 100))
+
+    print(f"\n── Performance " + "─" * 47)
+    print(f"  Sharpe Ratio:   {sharpe:>9.4f}  (target >= 3.0 for full points)")
+    print(f"  Realized PnL:   ${pnl:>+12,.0f}  (target >= $500,000 for full points)")
+    print(f"  Final NAV:      ${final_nav:>12,.0f}")
+    print(f"  Turnover:       {turnover:.2%}  (limit 30%)")
+
+    # ── Total score ────────────────────────────────────────────────────────────
+    if disqualified:
+        total = 0.0
+        print(f"\n{SEP}")
+        print("  ⛔  DISQUALIFIED — total score: 0 / 100")
+        print(SEP)
+    else:
+        total = 0.60 * sharpe_norm + 0.20 * pnl_norm + 0.20 * constraint_score
+        print(f"\n── Score Breakdown " + "─" * 43)
+        print(f"  Sharpe component  (60%):  {sharpe_norm:>6.1f} pts")
+        print(f"  PnL component     (20%):  {pnl_norm:>6.1f} pts")
+        print(f"  Constraint score  (20%):  {constraint_score:>6.1f} pts")
+        print(f"  {'─' * 40}")
+        print(f"  TOTAL SCORE:              {total:>6.1f} / 100")
+        print(SEP)
+
+    result = {
+        "disqualified":      disqualified,
+        "total_score":       round(total, 2),
+        "sharpe_ratio":      sharpe,
+        "sharpe_score":      round(sharpe_norm, 2),
+        "pnl":               pnl,
+        "pnl_score":         round(pnl_norm, 2),
+        "constraint_score":  round(constraint_score, 2),
+        "test_cases":        {tc: {"passed": p, "message": m} for tc, (p, m) in tests.items()},
+        "llm_calls_used":    len(llm_log),
+        "snapshots_count":   len(snaps),
+        "orders_count":      len(orders_log),
+    }
+
+    if args.output:
+        with open(args.output, "w") as f:
+            json.dump(result, f, indent=2)
+        print(f"\n  Result written to: {args.output}")
+
+    return result
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Validate HackKnight 2026 solution output")
-    parser.add_argument("--output-dir", default="./", help="Directory containing output JSON files")
+    parser = argparse.ArgumentParser(description="Hackathon@IITD 2026 Validator")
+    parser.add_argument("--orders",     required=True, help="orders_log.json")
+    parser.add_argument("--portfolio",  required=True, help="portfolio_snapshots.json")
+    parser.add_argument("--llm_calls",  required=True, help="llm_call_log.json")
+    parser.add_argument("--results",    required=True, help="results.json  (produced by agent.py)")
+    parser.add_argument("--ca",         default="corporate_actions.json")
+    parser.add_argument("--fundamentals", default=None,
+                        help="fundamentals.json (optional — enables ESG integration bonus check)")
+    parser.add_argument("--output",     default=None,  help="Output JSON path")
     args = parser.parse_args()
-    summary = validate(args.output_dir)
-    if summary["disqualified"]:
-        sys.exit(1)
-    sys.exit(0)
+
+    outcome = run(args)
+    sys.exit(0 if not outcome["disqualified"] else 1)
+
+
+# ─── TC009: Fundamentals integration check (bonus) ────────────────────────────
+def tc009_fundamentals_esg(snaps, fundamentals_path):
+    """
+    BONUS check: verify ESG signals from fundamentals.json influenced
+    portfolio weights for CA010 (E004, ESG ~73) and CA011 (A009, ESG ~61).
+
+    Pass condition: average weight of E004 in ticks 200–239 AND/OR
+    average weight of A009 in ticks 280–324 is below the cross-portfolio
+    average weight for their sectors in the same windows.
+
+    This is a heuristic — it rewards meaningful ESG integration without
+    penalising teams that happened to underweight these tickers for other reasons.
+    """
+    try:
+        with open(fundamentals_path) as f:
+            funds = json.load(f)
+        esg_by_ticker = {r["ticker"]: r["esg_score"] for r in funds}
+    except Exception:
+        return None, "fundamentals.json not provided — skipping ESG check"
+
+    # Check E004 pre-CA010 window (ticks 200–239)
+    e004_pre  = snaps_between(snaps, 200, 239)
+    e004_w    = [get_weight(s, "E004") for s in e004_pre]
+    avg_e004  = sum(e004_w) / len(e004_w) if e004_w else 0
+
+    # Check A009 pre-CA011 window (ticks 280–324)
+    a009_pre  = snaps_between(snaps, 280, 324)
+    a009_w    = [get_weight(s, "A009") for s in a009_pre]
+    avg_a009  = sum(a009_w) / len(a009_w) if a009_w else 0
+
+    # Market-cap-weighted average across all tickers as benchmark
+    # Simple heuristic: if agent holds fewer than 2% in both high-ESG tickers
+    # during their pre-event windows, treat as intentional underweight
+    e004_underweighted = avg_e004 < 0.02
+    a009_underweighted = avg_a009 < 0.02
+
+    if e004_underweighted or a009_underweighted:
+        details = []
+        if e004_underweighted:
+            details.append(f"E004 avg weight {avg_e004:.2%} pre-CA010 (ESG {esg_by_ticker.get('E004','?')})")
+        if a009_underweighted:
+            details.append(f"A009 avg weight {avg_a009:.2%} pre-CA011 (ESG {esg_by_ticker.get('A009','?')})")
+        return True, f"BONUS: ESG underweight detected — {'; '.join(details)}"
+
+    return False, (f"No ESG-driven underweight detected: "
+                   f"E004 avg {avg_e004:.2%} (ESG {esg_by_ticker.get('E004','?')}), "
+                   f"A009 avg {avg_a009:.2%} (ESG {esg_by_ticker.get('A009','?')})")

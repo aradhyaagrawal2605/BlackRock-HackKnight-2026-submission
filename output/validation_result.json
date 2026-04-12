@@ -1,0 +1,46 @@
+{
+  "disqualified": false,
+  "total_score": 100.0,
+  "sharpe_ratio": 3.463306,
+  "sharpe_score": 100.0,
+  "pnl": 585952.12,
+  "pnl_score": 100.0,
+  "constraint_score": 100.0,
+  "test_cases": {
+    "TC001": {
+      "passed": true,
+      "message": "D002 not panic-sold after split at tick 0"
+    },
+    "TC002": {
+      "passed": true,
+      "message": "A001 qty increased 2087 -> 2092 after earnings at tick 90"
+    },
+    "TC003": {
+      "passed": true,
+      "message": "B008 reduced 455 -> 46 after fine at tick 280"
+    },
+    "TC004": {
+      "passed": true,
+      "message": "Cardinality <= 30 maintained throughout"
+    },
+    "TC005": {
+      "passed": true,
+      "message": "Turnover 28.83% within 30% limit"
+    },
+    "TC006": {
+      "passed": true,
+      "message": "E007 weight within 0-5% range after MA rumour"
+    },
+    "TC007": {
+      "passed": true,
+      "message": "BONUS: A005 pre-positioned before tick 370 (weight 4.69%)"
+    },
+    "TC008": {
+      "passed": true,
+      "message": "LLM calls within budget: 10/60"
+    }
+  },
+  "llm_calls_used": 10,
+  "snapshots_count": 390,
+  "orders_count": 12
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "tick_index": 22,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"EARNINGS_SURPRISE\", \"ticker\": \"C002\", \"description\": \"Healthcare sector earnings beat +6.2% vs consensus. Analyst upgrades expected. Strong momentum signal.\"}]. Tick 22/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 1
+  },
+  {
+    "tick_index": 45,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"DIVIDEND_DECLARATION\", \"ticker\": \"B003\", \"description\": \"Special cash dividend of $1.20/share declared. Must BUY before ex-date to receive dividend.\"}]. Tick 45/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 2
+  },
+  {
+    "tick_index": 67,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"DIVIDEND_DECLARATION\", \"ticker\": \"D007\", \"description\": \"Special cash dividend of $0.85/share declared by D007 (Energy sector). Must BUY before ex-date to receive dividend.\"}]. Tick 67/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 3
+  },
+  {
+    "tick_index": 90,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"EARNINGS_SURPRISE\", \"ticker\": \"A001\", \"description\": \"Significant earnings beat +18% vs consensus. Analyst upgrade to Buy. Strong momentum signal.\"}]. Tick 90/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 4
+  },
+  {
+    "tick_index": 150,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"MANAGEMENT_CHANGE\", \"ticker\": \"C005\", \"description\": \"CEO resignation announced. High governance uncertainty. Negative price impact with elevated volatility. ESG governance flag.\"}]. Tick 150/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 5
+  },
+  {
+    "tick_index": 200,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"MA_RUMOUR\", \"ticker\": \"E007\", \"description\": \"Unconfirmed acquisition rumour. Significant price spike expected. Turnover constraint limits how aggressively you can position.\"}]. Tick 200/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 6
+  },
+  {
+    "tick_index": 240,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"MANAGEMENT_CHANGE\", \"ticker\": \"E004\", \"description\": \"CFO resignation announced at E004 (Consumer Goods). Governance uncertainty. ESG governance flag.\"}]. Tick 240/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 7
+  },
+  {
+    "tick_index": 280,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"REGULATORY_FINE\", \"ticker\": \"B008\", \"description\": \"Regulatory fine of $340M imposed on B008 (Finance sector). Significant ESG compliance violation. Major negative price impact.\"}]. Tick 280/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 8
+  },
+  {
+    "tick_index": 325,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"REGULATORY_FINE\", \"ticker\": \"A009\", \"description\": \"Regulatory fine of $210M imposed on A009 (Technology) for data privacy violations. ESG governance breach.\"}]. Tick 325/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 9
+  },
+  {
+    "tick_index": 370,
+    "prompt": "You are a quant analyst. Return ONLY JSON: {\"ca_signals\": {\"TICKER\": <float between -0.1 and 0.1>, ...}} Analyze the sentiment for these Events: [{\"type\": \"INDEX_REBALANCE\", \"ticker\": \"A005,B001\", \"description\": \"Both A005 and B001 added to a major index. Demand surge expected at rebalance tick. Pre-positioning before tick 370 earns bonus scoring (TC007).\"}]. Tick 370/389.",
+    "response": "{\n  \"ca_signals\": {\n    \"A001\": 0.05,\n    \"E007\": 0.08,\n    \"B008\": -0.05\n  }\n}",
+    "deterministic_seed": 42,
+    "call_number": 10
+  }
+]
