@@ -1,9 +1,9 @@
 {
   "disqualified": false,
   "total_score": 100.0,
-  "sharpe_ratio": 3.463306,
+  "sharpe_ratio": 3.775829,
   "sharpe_score": 100.0,
-  "pnl": 585952.12,
+  "pnl": 531478.48,
   "pnl_score": 100.0,
   "constraint_score": 100.0,
   "test_cases": {
@@ -13,11 +13,11 @@
     },
     "TC002": {
       "passed": true,
-      "message": "A001 qty increased 2087 -> 2092 after earnings at tick 90"
+      "message": "A001 qty increased 527 -> 532 after earnings at tick 90"
     },
     "TC003": {
       "passed": true,
-      "message": "B008 reduced 455 -> 46 after fine at tick 280"
+      "message": "B008 reduced 45 -> 1 after fine at tick 280"
     },
     "TC004": {
       "passed": true,
@@ -25,7 +25,7 @@
     },
     "TC005": {
       "passed": true,
-      "message": "Turnover 28.83% within 30% limit"
+      "message": "Turnover 27.08% within 30% limit"
     },
     "TC006": {
       "passed": true,
@@ -33,14 +33,14 @@
     },
     "TC007": {
       "passed": true,
-      "message": "BONUS: A005 pre-positioned before tick 370 (weight 4.69%)"
+      "message": "BONUS: B001 pre-positioned before tick 370 (weight 10.92%)"
     },
     "TC008": {
       "passed": true,
-      "message": "LLM calls within budget: 10/60"
+      "message": "LLM calls within budget: 60/60"
     }
   },
-  "llm_calls_used": 10,
+  "llm_calls_used": 60,
   "snapshots_count": 390,
-  "orders_count": 12
+  "orders_count": 14
 }

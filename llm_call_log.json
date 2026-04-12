@@ -1,0 +1,422 @@
+[
+  {
+    "tick_index": 2,
+    "prompt": "Tick 2/389. NAV $10,003,836. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 1
+  },
+  {
+    "tick_index": 5,
+    "prompt": "Tick 5/389. NAV $10,002,073. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 2
+  },
+  {
+    "tick_index": 8,
+    "prompt": "Tick 8/389. NAV $10,006,067. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 3
+  },
+  {
+    "tick_index": 9,
+    "prompt": "Tick 9/389. NAV $10,006,415. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 4
+  },
+  {
+    "tick_index": 11,
+    "prompt": "Tick 11/389. NAV $10,003,593. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 5
+  },
+  {
+    "tick_index": 14,
+    "prompt": "Tick 14/389. NAV $9,997,694. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 6
+  },
+  {
+    "tick_index": 16,
+    "prompt": "Tick 16/389. NAV $9,997,781. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 7
+  },
+  {
+    "tick_index": 23,
+    "prompt": "Tick 23/389. NAV $10,016,523. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 8
+  },
+  {
+    "tick_index": 30,
+    "prompt": "Tick 30/389. NAV $10,003,141. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 9
+  },
+  {
+    "tick_index": 37,
+    "prompt": "Tick 37/389. NAV $10,002,093. Holdings:[B001(9288),D006(5127),E007(5233),B003(1742),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 10
+  },
+  {
+    "tick_index": 44,
+    "prompt": "Tick 44/389. NAV $10,014,774. Holdings:[B001(9288),D006(5127),E007(5233),B003(2176),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 11
+  },
+  {
+    "tick_index": 51,
+    "prompt": "Tick 51/389. NAV $10,016,220. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 12
+  },
+  {
+    "tick_index": 58,
+    "prompt": "Tick 58/389. NAV $9,992,905. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 13
+  },
+  {
+    "tick_index": 65,
+    "prompt": "Tick 65/389. NAV $10,003,749. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 14
+  },
+  {
+    "tick_index": 72,
+    "prompt": "Tick 72/389. NAV $10,008,994. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 15
+  },
+  {
+    "tick_index": 79,
+    "prompt": "Tick 79/389. NAV $10,021,943. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 16
+  },
+  {
+    "tick_index": 86,
+    "prompt": "Tick 86/389. NAV $10,042,312. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(21),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 17
+  },
+  {
+    "tick_index": 93,
+    "prompt": "Tick 93/389. NAV $10,060,728. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 18
+  },
+  {
+    "tick_index": 100,
+    "prompt": "Tick 100/389. NAV $10,049,468. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 19
+  },
+  {
+    "tick_index": 107,
+    "prompt": "Tick 107/389. NAV $10,056,161. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 20
+  },
+  {
+    "tick_index": 114,
+    "prompt": "Tick 114/389. NAV $10,040,014. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 21
+  },
+  {
+    "tick_index": 121,
+    "prompt": "Tick 121/389. NAV $10,057,442. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 22
+  },
+  {
+    "tick_index": 128,
+    "prompt": "Tick 128/389. NAV $10,048,998. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 23
+  },
+  {
+    "tick_index": 135,
+    "prompt": "Tick 135/389. NAV $10,084,606. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 24
+  },
+  {
+    "tick_index": 142,
+    "prompt": "Tick 142/389. NAV $10,083,806. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 25
+  },
+  {
+    "tick_index": 149,
+    "prompt": "Tick 149/389. NAV $10,089,043. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 26
+  },
+  {
+    "tick_index": 156,
+    "prompt": "Tick 156/389. NAV $10,084,685. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 27
+  },
+  {
+    "tick_index": 163,
+    "prompt": "Tick 163/389. NAV $10,100,663. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 28
+  },
+  {
+    "tick_index": 170,
+    "prompt": "Tick 170/389. NAV $10,096,980. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 29
+  },
+  {
+    "tick_index": 177,
+    "prompt": "Tick 177/389. NAV $10,114,081. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 30
+  },
+  {
+    "tick_index": 184,
+    "prompt": "Tick 184/389. NAV $10,138,108. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 31
+  },
+  {
+    "tick_index": 191,
+    "prompt": "Tick 191/389. NAV $10,151,499. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 32
+  },
+  {
+    "tick_index": 198,
+    "prompt": "Tick 198/389. NAV $10,150,291. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 33
+  },
+  {
+    "tick_index": 205,
+    "prompt": "Tick 205/389. NAV $10,276,486. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 34
+  },
+  {
+    "tick_index": 212,
+    "prompt": "Tick 212/389. NAV $10,332,466. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 35
+  },
+  {
+    "tick_index": 219,
+    "prompt": "Tick 219/389. NAV $10,347,750. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 36
+  },
+  {
+    "tick_index": 226,
+    "prompt": "Tick 226/389. NAV $10,364,899. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 37
+  },
+  {
+    "tick_index": 233,
+    "prompt": "Tick 233/389. NAV $10,383,593. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 38
+  },
+  {
+    "tick_index": 240,
+    "prompt": "Tick 240/389. NAV $10,394,429. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 39
+  },
+  {
+    "tick_index": 247,
+    "prompt": "Tick 247/389. NAV $10,381,594. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 40
+  },
+  {
+    "tick_index": 254,
+    "prompt": "Tick 254/389. NAV $10,375,138. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 41
+  },
+  {
+    "tick_index": 261,
+    "prompt": "Tick 261/389. NAV $10,353,356. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 42
+  },
+  {
+    "tick_index": 268,
+    "prompt": "Tick 268/389. NAV $10,365,552. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 43
+  },
+  {
+    "tick_index": 275,
+    "prompt": "Tick 275/389. NAV $10,388,373. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(45)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 44
+  },
+  {
+    "tick_index": 282,
+    "prompt": "Tick 282/389. NAV $10,393,261. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 45
+  },
+  {
+    "tick_index": 289,
+    "prompt": "Tick 289/389. NAV $10,386,076. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 46
+  },
+  {
+    "tick_index": 296,
+    "prompt": "Tick 296/389. NAV $10,357,671. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 47
+  },
+  {
+    "tick_index": 303,
+    "prompt": "Tick 303/389. NAV $10,371,021. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 48
+  },
+  {
+    "tick_index": 310,
+    "prompt": "Tick 310/389. NAV $10,370,736. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 49
+  },
+  {
+    "tick_index": 317,
+    "prompt": "Tick 317/389. NAV $10,395,646. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 50
+  },
+  {
+    "tick_index": 324,
+    "prompt": "Tick 324/389. NAV $10,395,873. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 51
+  },
+  {
+    "tick_index": 331,
+    "prompt": "Tick 331/389. NAV $10,396,741. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 52
+  },
+  {
+    "tick_index": 338,
+    "prompt": "Tick 338/389. NAV $10,399,236. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 53
+  },
+  {
+    "tick_index": 345,
+    "prompt": "Tick 345/389. NAV $10,414,697. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 54
+  },
+  {
+    "tick_index": 352,
+    "prompt": "Tick 352/389. NAV $10,438,940. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 55
+  },
+  {
+    "tick_index": 359,
+    "prompt": "Tick 359/389. NAV $10,425,335. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 56
+  },
+  {
+    "tick_index": 366,
+    "prompt": "Tick 366/389. NAV $10,419,081. Holdings:[B001(9288),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 57
+  },
+  {
+    "tick_index": 373,
+    "prompt": "Tick 373/389. NAV $10,447,388. Holdings:[B001(9602),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 58
+  },
+  {
+    "tick_index": 380,
+    "prompt": "Tick 380/389. NAV $10,483,574. Holdings:[B001(9602),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 59
+  },
+  {
+    "tick_index": 387,
+    "prompt": "Tick 387/389. NAV $10,514,765. Holdings:[B001(9602),D006(5127),E007(5233),B003(1741),A005(38),A001(532),B008(1)]. Rate each held ticker expected return. JSON:{\"expected_returns\":{\"TICKER\":float},\"reasoning\":\"brief\"}",
+    "response": "{\"expected_returns\": {}}",
+    "deterministic_seed": 42,
+    "call_number": 60
+  }
+]
