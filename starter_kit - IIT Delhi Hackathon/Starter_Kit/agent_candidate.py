@@ -7,7 +7,7 @@ Architecture:
   3. SignalEngine injects CA-derived mu signals using price_impact_pct from the file
   4. CA-reactive trades executed at event ticks (buys for positive, sells for negative)
   5. 60 refined LLM prompts queued — enable with ENABLE_LLM = True
-  6. Sharpe annualised by sqrt(252)
+  6. Sharpe annualised by sqrt(390) — 390 ticks per session
 """
 
 import argparse
@@ -661,7 +661,7 @@ def compute_results(snaps, orders, llm_log, start_cash):
             m = sum(lr)/len(lr)
             s = math.sqrt(sum((r-m)**2 for r in lr)/len(lr))
             raw_sharpe = m/s if s > 1e-10 else 0
-            sharpe = raw_sharpe * math.sqrt(252)
+            sharpe = raw_sharpe * math.sqrt(390)
     traded = sum(abs(o["qty"])*o["exec_price"] for o in orders)
     avg = sum(vals)/len(vals) if vals else start_cash
     to = traded/avg if avg > 0 else 0

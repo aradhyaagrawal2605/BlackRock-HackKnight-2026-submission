@@ -247,7 +247,8 @@ function renderDashboard(ctx) {
 
   const logRets = [];
   for (let i = 1; i < values.length; i++) { if (values[i-1] > 0 && values[i] > 0) logRets.push(Math.log(values[i]/values[i-1])); }
-  const sharpe = logRets.length >= 2 ? (mean(logRets) / std(logRets)) : 0;
+  const rawSharpe = logRets.length >= 2 ? (mean(logRets) / std(logRets)) : 0;
+  const sharpe = rawSharpe * Math.sqrt(390);
 
   const totalTraded = orders.reduce((s,o) => s + Math.abs((o.quantity||o.qty||0) * (o.exec_price||o.price||0)), 0);
   const avgPV = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 10_000_000;
@@ -264,7 +265,14 @@ function renderDashboard(ctx) {
       <div class="tc-badge ${tc004Pass?'pass':'fail'}"><div><div class="tc-name">TC004 — Max Holdings</div><div style="font-size:11px;color:var(--text-muted)">Limit: 30</div></div><div class="tc-value">${tc004Pass?'PASS':'FAIL — DQ'} (${maxHoldings})</div></div>
       <div class="tc-badge ${tc005Pass?'pass':'fail'}"><div><div class="tc-name">TC005 — Turnover Limit</div><div style="font-size:11px;color:var(--text-muted)">Limit: 30%</div></div><div class="tc-value">${tc005Pass?'PASS':'FAIL — DQ'} (${(turnover*100).toFixed(2)}%)</div></div>
       <div class="tc-badge ${pnl>=0?'pass':'warn'}"><div><div class="tc-name">Net PnL</div><div style="font-size:11px;color:var(--text-muted)">vs $10M starting</div></div><div class="tc-value">${pnl>=0?'+':''}$${Math.abs(pnl).toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
-      <div class="tc-badge ${sharpe>0?'pass':'warn'}"><div><div class="tc-name">Sharpe Ratio</div><div style="font-size:11px;color:var(--text-muted)">Tick-level</div></div><div class="tc-value">${sharpe.toFixed(4)}</div></div>
+      <div class="tc-badge ${sharpe>=3.0?'pass':'warn'}"><div><div class="tc-name">Sharpe Ratio</div><div style="font-size:11px;color:var(--text-muted)">Annualized (×√390)</div></div><div class="tc-value">${sharpe.toFixed(4)}</div></div>
+      ${(() => {
+        const sharpeNorm = Math.min(100, Math.max(0, sharpe / 3.0 * 100));
+        const pnlNorm = Math.min(100, Math.max(0, pnl / 500000 * 100));
+        const constraintScore = tc004Pass && tc005Pass ? 100 : 0;
+        const totalScore = 0.60 * sharpeNorm + 0.20 * pnlNorm + 0.20 * constraintScore;
+        return `<div class="tc-badge ${totalScore>=99.5?'pass':'warn'}"><div><div class="tc-name">Total Score</div><div style="font-size:11px;color:var(--text-muted)">60% Sharpe + 20% PnL + 20% TC</div></div><div class="tc-value">${totalScore.toFixed(1)} / 100</div></div>`;
+      })()}
     </div>
 
     <div class="kpi-row">
@@ -287,7 +295,7 @@ function renderDashboard(ctx) {
     <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Trade Activity</h3><div class="tag">Buys (green) · Sells (red) · Volume bars</div></div><div class="card-body"><div id="chartTradeAct" style="height:320px"></div></div></div></div>
 
     <div class="grid grid-2">
-      <div class="card"><div class="card-header"><h3>Rolling Sharpe Ratio (20-tick)</h3><div class="tag">Moving window</div></div><div class="card-body"><div id="chartRollSharpe" style="height:300px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Rolling Sharpe Ratio (20-tick, ×√390)</h3><div class="tag">Moving window · Annualized</div></div><div class="card-body"><div id="chartRollSharpe" style="height:300px"></div></div></div>
       <div class="card"><div class="card-header"><h3>Cumulative Turnover</h3><div class="tag">Running total vs 30% cap</div></div><div class="card-body"><div id="chartCumTurnover" style="height:300px"></div></div></div>
     </div>
 
@@ -416,7 +424,7 @@ function renderRollingSharpe(ctx) {
   for (let i = window; i < logRets.length; i++) {
     const slice = logRets.slice(i-window, i);
     const m = mean(slice), s = std(slice);
-    sharpes.push(s > 1e-10 ? m/s : 0);
+    sharpes.push(s > 1e-10 ? (m/s) * Math.sqrt(390) : 0);
     ticks.push(snaps[i+1]?.tick ?? i+1);
   }
   Plotly.newPlot('chartRollSharpe', [
