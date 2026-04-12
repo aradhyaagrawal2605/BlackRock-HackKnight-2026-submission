@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlackRock HackKnight 2026 — Agent Performance Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0a0e17;
+  --bg-card: #111827;
+  --bg-card-hover: #1a2332;
+  --border: #1e293b;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-amber: #f59e0b;
+  --accent-cyan: #06b6d4;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg-primary); color: var(--text-primary); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; }
+
+.header { background: linear-gradient(135deg, #0f172a 0%, #1a0e2e 100%); border-bottom: 1px solid var(--border); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 22px; font-weight: 700; }
+.header h1 span { color: var(--accent-purple); }
+.header .subtitle { color: var(--text-secondary); font-size: 13px; margin-top: 2px; }
+.load-section { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.load-btn { background: var(--accent-blue); color: #fff; border: none; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; transition: background .2s; }
+.load-btn:hover { background: #2563eb; }
+.load-btn.loaded { background: var(--accent-green); }
+.status-badge { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary); }
+input[type="file"] { display: none; }
+
+.compliance-banner { display: flex; gap: 12px; padding: 12px 32px; }
+.tc-badge { flex: 1; padding: 14px 20px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; }
+.tc-badge.pass { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
+.tc-badge.fail { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); }
+.tc-badge.warn { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); }
+.tc-badge .tc-name { font-size: 13px; font-weight: 600; }
+.tc-badge .tc-value { font-size: 18px; font-weight: 700; }
+.tc-badge.pass .tc-value { color: var(--accent-green); }
+.tc-badge.fail .tc-value { color: var(--accent-red); }
+.tc-badge.warn .tc-value { color: var(--accent-amber); }
+
+.kpi-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; padding: 0 32px; margin-bottom: 8px; }
+.kpi { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.kpi .label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi .value { font-size: 20px; font-weight: 700; margin-top: 3px; }
+.kpi .sub { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.kpi .pos { color: var(--accent-green); }
+.kpi .neg { color: var(--accent-red); }
+
+.grid { display: grid; gap: 16px; padding: 16px 32px; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.grid-full { grid-template-columns: 1fr; }
+.grid-2-1 { grid-template-columns: 2fr 1fr; }
+.grid-1-2 { grid-template-columns: 1fr 2fr; }
+
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.card-header { padding: 14px 18px 0; display: flex; justify-content: space-between; align-items: center; }
+.card-header h3 { font-size: 14px; font-weight: 600; }
+.card-header .tag { font-size: 11px; color: var(--text-muted); background: var(--bg-primary); padding: 3px 8px; border-radius: 4px; }
+.card-body { padding: 8px 10px 10px; }
+
+table.data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+table.data-table thead th { background: var(--bg-primary); color: var(--text-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; padding: 7px 8px; text-align: left; position: sticky; top: 0; cursor: pointer; user-select: none; }
+table.data-table thead th:hover { color: var(--text-primary); }
+table.data-table tbody td { padding: 6px 8px; border-top: 1px solid var(--border); color: var(--text-secondary); }
+table.data-table tbody tr:hover td { background: var(--bg-card-hover); color: var(--text-primary); }
+.table-wrap { max-height: 400px; overflow-y: auto; }
+.table-wrap::-webkit-scrollbar { width: 6px; }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.buy-tag { color: var(--accent-green); font-weight: 600; }
+.sell-tag { color: var(--accent-red); font-weight: 600; }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-state h3 { margin-bottom: 8px; font-size: 16px; }
+
+.ca-audit-item { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.ca-audit-item:last-child { border-bottom: none; }
+.ca-audit-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.ca-audit-icon.reacted { background: rgba(16,185,129,0.2); color: var(--accent-green); }
+.ca-audit-icon.missed { background: rgba(239,68,68,0.2); color: var(--accent-red); }
+.ca-audit-icon.na { background: rgba(100,116,139,0.2); color: var(--text-muted); }
+
+.llm-item { padding: 10px 16px; border-bottom: 1px solid var(--border); font-size: 11px; }
+.llm-item:last-child { border-bottom: none; }
+.llm-tick { color: var(--accent-amber); font-weight: 700; margin-right: 8px; }
+.llm-prompt { color: var(--text-secondary); max-height: 40px; overflow: hidden; transition: max-height 0.3s; cursor: pointer; }
+.llm-prompt.expanded { max-height: 300px; }
+.llm-response { color: var(--accent-cyan); margin-top: 4px; max-height: 40px; overflow: hidden; transition: max-height 0.3s; cursor: pointer; }
+.llm-response.expanded { max-height: 300px; }
+
+@media (max-width: 1200px) { .grid-2, .grid-3, .grid-2-1, .grid-1-2 { grid-template-columns: 1fr; } .kpi-row { grid-template-columns: repeat(3, 1fr); } .compliance-banner { flex-wrap: wrap; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>BlackRock HackKnight 2026 — <span>Agent Performance</span></h1>
+    <div class="subtitle">Simulation results · Portfolio analytics · Compliance · LLM usage</div>
+  </div>
+  <div class="load-section">
+    <button class="load-btn" id="btnSnap" onclick="document.getElementById('fileSnap').click()">Snapshots</button>
+    <input type="file" id="fileSnap" accept=".json" onchange="loadFile(this,'snap')">
+    <button class="load-btn" id="btnOrders" onclick="document.getElementById('fileOrders').click()">Orders</button>
+    <input type="file" id="fileOrders" accept=".json" onchange="loadFile(this,'orders')">
+    <button class="load-btn" id="btnResults" onclick="document.getElementById('fileResults').click()">Results</button>
+    <input type="file" id="fileResults" accept=".json" onchange="loadFile(this,'results')">
+    <button class="load-btn" id="btnLLM" onclick="document.getElementById('fileLLM').click()">LLM Log</button>
+    <input type="file" id="fileLLM" accept=".json" onchange="loadFile(this,'llm')">
+    <button class="load-btn" id="btnFeed" onclick="document.getElementById('fileFeed').click()">Market Feed</button>
+    <input type="file" id="fileFeed" accept=".json" onchange="loadFile(this,'feed')">
+    <button class="load-btn" id="btnCA" onclick="document.getElementById('fileCA').click()">Corp Actions</button>
+    <input type="file" id="fileCA" accept=".json" onchange="loadFile(this,'ca')">
+    <button class="load-btn" style="background:var(--accent-purple)" onclick="autoLoad()">Auto-Load All</button>
+    <span class="status-badge" id="statusBadge">No data loaded</span>
+  </div>
+</div>
+
+<div id="mainContent">
+  <div class="empty-state">
+    <h3>Load Simulation Output to Begin</h3>
+    <p>Click "Auto-Load All" to fetch output files from the current directory, or load individually.</p>
+  </div>
+</div>
+
+<script>
+const PLOTLY_BASE = { paper_bgcolor: '#111827', plot_bgcolor: '#0a0e17', font: { color: '#94a3b8', size: 11 }, margin: { t: 30, r: 20, b: 40, l: 60 }, xaxis: { gridcolor: '#1e293b', zerolinecolor: '#1e293b' }, yaxis: { gridcolor: '#1e293b', zerolinecolor: '#1e293b' } };
+const PCFG = { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d','select2d'], displaylogo: false };
+const SECTOR_COLORS = { TECH:'#3b82f6', FINANCE:'#10b981', HEALTHCARE:'#8b5cf6', ENERGY:'#f59e0b', CONSUMER:'#06b6d4', TECHNOLOGY:'#3b82f6' };
+
+let DATA = { snap: null, orders: null, results: null, llm: null, feed: null, ca: null };
+
+function loadFile(input, key) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { try { DATA[key] = JSON.parse(e.target.result); tryRender(); } catch(err) { alert('Invalid JSON: '+err.message); } };
+  reader.readAsText(file);
+}
+
+async function autoLoad() {
+  const paths = [
+    ['portfolio_snapshots.json','snap'], ['orders_log.json','orders'], ['results.json','results'],
+    ['llm_call_log.json','llm'], ['market_feed_full.json','feed'], ['corporate_actions.json','ca'],
+  ];
+  const altBase = 'starter_kit - IIT Delhi Hackathon/Starter_Kit/';
+  let loaded = 0;
+  for (const [f, k] of paths) {
+    for (const prefix of ['', altBase]) {
+      try { const r = await fetch(prefix+f); if (r.ok) { DATA[k] = await r.json(); loaded++; break; } } catch(e) {}
+    }
+  }
+  if (!DATA.feed) {
+    try { const r = await fetch(altBase+'market_feed_sample.json'); if (r.ok) { DATA.feed = await r.json(); loaded++; } } catch(e) {}
+  }
+  if (loaded > 0) tryRender();
+  else alert('Auto-load failed — load files manually.');
+}
+
+function tryRender() {
+  const snaps = normalizeSnapshots(DATA.snap);
+  const orders = DATA.orders || [];
+  const results = DATA.results || {};
+  const llmLog = DATA.llm || [];
+  const caList = normalizeCA(DATA.ca);
+  const feed = normalizeFeed(DATA.feed);
+
+  const ctx = { snaps, orders, results, llmLog, caList, feed };
+  document.getElementById('statusBadge').textContent =
+    `${snaps.length} snaps · ${orders.length} orders · ${llmLog.length} LLM calls`;
+  renderDashboard(ctx);
+}
+
+function normalizeSnapshots(raw) {
+  if (!raw) return [];
+  if (!Array.isArray(raw)) return [];
+  return raw.map(s => {
+    const pv = s.portfolio_value ?? s.total_value ?? 0;
+    const cash = s.cash ?? 0;
+    const tick = s.tick_index ?? 0;
+    let holdings = {};
+    if (Array.isArray(s.holdings)) {
+      for (const h of s.holdings) holdings[h.ticker] = { qty: h.qty || h.quantity || 0, price: h.price || h.avg_price || 0, value: h.value || (h.qty||0)*(h.price||h.avg_price||0) };
+    } else if (typeof s.holdings === 'object' && s.holdings) {
+      for (const [t, v] of Object.entries(s.holdings)) {
+        if (typeof v === 'object') holdings[t] = { qty: v.quantity || v.qty || 0, price: v.price || v.avg_price || 0, value: v.value || 0 };
+      }
+    }
+    const nHoldings = s.n_holdings ?? Object.keys(holdings).filter(k => holdings[k].qty > 0).length;
+    return { tick, pv, cash, holdings, nHoldings };
+  });
+}
+
+function normalizeCA(raw) {
+  if (!raw) return [];
+  return Array.isArray(raw) ? raw : (raw.actions || []);
+}
+
+function normalizeFeed(raw) {
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : (raw.ticks || []);
+  return arr.map(tick => {
+    const idx = tick.tick_index ?? 0;
+    let data = {};
+    if (tick.tickers && Array.isArray(tick.tickers)) {
+      for (const t of tick.tickers) data[t.ticker] = { price: parseFloat(t.price), sector: t.sector || '' };
+    } else if (tick.prices) {
+      for (const [k, v] of Object.entries(tick.prices)) data[k] = { price: typeof v === 'object' ? parseFloat(v.price||v) : parseFloat(v), sector: '' };
+    }
+    return { tick: idx, data };
+  });
+}
+
+function renderDashboard(ctx) {
+  const { snaps, orders, results, llmLog, caList, feed } = ctx;
+  const values = snaps.map(s => s.pv);
+  const startVal = values.length ? values[0] : 10_000_000;
+  const finalVal = values.length ? values[values.length - 1] : startVal;
+  const pnl = finalVal - 10_000_000;
+  const pnlPct = pnl / 10_000_000 * 100;
+
+  const logRets = [];
+  for (let i = 1; i < values.length; i++) { if (values[i-1] > 0 && values[i] > 0) logRets.push(Math.log(values[i]/values[i-1])); }
+  const sharpe = logRets.length >= 2 ? (mean(logRets) / std(logRets)) : 0;
+
+  const totalTraded = orders.reduce((s,o) => s + Math.abs((o.quantity||o.qty||0) * (o.exec_price||o.price||0)), 0);
+  const avgPV = values.length ? values.reduce((a,b)=>a+b,0)/values.length : 10_000_000;
+  const turnover = avgPV > 0 ? totalTraded / avgPV : 0;
+  const totalFees = orders.reduce((s,o) => s + (o.fees || 0), 0);
+  const maxHoldings = snaps.length ? Math.max(...snaps.map(s => s.nHoldings)) : 0;
+
+  const tc004Pass = maxHoldings <= 30;
+  const tc005Pass = turnover <= 0.30;
+
+  const main = document.getElementById('mainContent');
+  main.innerHTML = `
+    <div class="compliance-banner">
+      <div class="tc-badge ${tc004Pass?'pass':'fail'}"><div><div class="tc-name">TC004 — Max Holdings</div><div style="font-size:11px;color:var(--text-muted)">Limit: 30</div></div><div class="tc-value">${tc004Pass?'PASS':'FAIL — DQ'} (${maxHoldings})</div></div>
+      <div class="tc-badge ${tc005Pass?'pass':'fail'}"><div><div class="tc-name">TC005 — Turnover Limit</div><div style="font-size:11px;color:var(--text-muted)">Limit: 30%</div></div><div class="tc-value">${tc005Pass?'PASS':'FAIL — DQ'} (${(turnover*100).toFixed(2)}%)</div></div>
+      <div class="tc-badge ${pnl>=0?'pass':'warn'}"><div><div class="tc-name">Net PnL</div><div style="font-size:11px;color:var(--text-muted)">vs $10M starting</div></div><div class="tc-value">${pnl>=0?'+':''}$${Math.abs(pnl).toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+      <div class="tc-badge ${sharpe>0?'pass':'warn'}"><div><div class="tc-name">Sharpe Ratio</div><div style="font-size:11px;color:var(--text-muted)">Tick-level</div></div><div class="tc-value">${sharpe.toFixed(4)}</div></div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi"><div class="label">Starting NAV</div><div class="value">$10.0M</div></div>
+      <div class="kpi"><div class="label">Final NAV</div><div class="value ${pnl>=0?'pos':'neg'}">$${(finalVal/1e6).toFixed(3)}M</div></div>
+      <div class="kpi"><div class="label">PnL</div><div class="value ${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}${pnlPct.toFixed(3)}%</div></div>
+      <div class="kpi"><div class="label">Total Orders</div><div class="value">${orders.length}</div><div class="sub">${orders.filter(o=>(o.side||'').toUpperCase()==='BUY').length} buys · ${orders.filter(o=>(o.side||'').toUpperCase()==='SELL').length} sells</div></div>
+      <div class="kpi"><div class="label">Total Fees</div><div class="value">$${totalFees.toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>
+      <div class="kpi"><div class="label">Turnover</div><div class="value">${(turnover*100).toFixed(2)}%</div><div class="sub">of 30% limit</div></div>
+      <div class="kpi"><div class="label">LLM Calls</div><div class="value">${llmLog.length}</div><div class="sub">of 50–60 quota</div></div>
+    </div>
+
+    <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Portfolio NAV Over Time</h3><div class="tag">With drawdown overlay</div></div><div class="card-body"><div id="chartNAV" style="height:400px"></div></div></div></div>
+
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Cash vs Invested Value</h3><div class="tag">Stacked area</div></div><div class="card-body"><div id="chartCashInvest" style="height:320px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Holdings Count Over Time</h3><div class="tag">TC004 limit = 30</div></div><div class="card-body"><div id="chartHoldCount" style="height:320px"></div></div></div>
+    </div>
+
+    <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Trade Activity</h3><div class="tag">Buys (green) · Sells (red) · Volume bars</div></div><div class="card-body"><div id="chartTradeAct" style="height:320px"></div></div></div></div>
+
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Rolling Sharpe Ratio (20-tick)</h3><div class="tag">Moving window</div></div><div class="card-body"><div id="chartRollSharpe" style="height:300px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Cumulative Turnover</h3><div class="tag">Running total vs 30% cap</div></div><div class="card-body"><div id="chartCumTurnover" style="height:300px"></div></div></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>PnL Waterfall</h3><div class="tag">Decomposition</div></div><div class="card-body"><div id="chartWaterfall" style="height:340px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Return Distribution</h3><div class="tag">Tick-over-tick log returns</div></div><div class="card-body"><div id="chartRetDist" style="height:340px"></div></div></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Sector Allocation Over Time</h3><div class="tag">Stacked area by sector weight</div></div><div class="card-body"><div id="chartSectorAlloc" style="height:360px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Final Sector Allocation</h3><div class="tag">Pie chart at last tick</div></div><div class="card-body"><div id="chartSectorPie" style="height:360px"></div></div></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Top Holdings by Weight</h3><div class="tag">Last snapshot</div></div><div class="card-body"><div id="chartTopHoldings" style="height:360px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Drawdown Chart</h3><div class="tag">Peak-to-trough</div></div><div class="card-body"><div id="chartDrawdown" style="height:360px"></div></div></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Corporate Action Response Audit</h3><div class="tag">Did the agent react?</div></div><div class="card-body" style="max-height:450px;overflow-y:auto" id="caAudit"></div></div>
+      <div class="card"><div class="card-header"><h3>LLM Call Log</h3><div class="tag">${llmLog.length} calls</div></div><div class="card-body"><div id="chartLLMUsage" style="height:200px"></div><div style="max-height:220px;overflow-y:auto" id="llmLogList"></div></div></div>
+    </div>
+
+    <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Orders Log</h3><div class="tag">${orders.length} orders · Click column to sort</div></div><div class="card-body"><div class="table-wrap" id="ordersTableWrap" style="max-height:500px"></div></div></div></div>
+
+    <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Per-Ticker PnL</h3><div class="tag">Estimated from orders</div></div><div class="card-body"><div id="chartTickerPnL" style="height:400px"></div></div></div></div>
+  `;
+
+  renderNAV(ctx);
+  renderCashInvest(ctx);
+  renderHoldingsCount(ctx);
+  renderTradeActivity(ctx);
+  renderRollingSharpe(ctx);
+  renderCumTurnover(ctx);
+  renderWaterfall(ctx);
+  renderRetDist(ctx);
+  renderSectorAllocation(ctx);
+  renderSectorPie(ctx);
+  renderTopHoldings(ctx);
+  renderDrawdown(ctx);
+  renderCAAudit(ctx);
+  renderLLMUsage(ctx);
+  renderOrdersTable(ctx);
+  renderTickerPnL(ctx);
+}
+
+function mean(arr) { return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function std(arr) { const m = mean(arr); return Math.sqrt(arr.reduce((s,v)=>s+(v-m)**2,0)/arr.length); }
+
+function tickerSector(ticker) {
+  const prefix = { A:'TECH', B:'FINANCE', C:'HEALTHCARE', D:'ENERGY', E:'CONSUMER' };
+  return prefix[ticker[0]] || 'OTHER';
+}
+
+function renderNAV(ctx) {
+  const { snaps, feed, caList } = ctx;
+  const ticks = snaps.map(s=>s.tick), vals = snaps.map(s=>s.pv);
+
+  const traces = [{ x: ticks, y: vals, name: 'Portfolio NAV', type: 'scatter', mode: 'lines', line: { color: '#8b5cf6', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(139,92,246,0.08)' }];
+
+  if (feed.length) {
+    const allTickers = Object.keys(feed[0].data);
+    const base = {};
+    for (const t of allTickers) base[t] = feed[0].data[t]?.price || 0;
+    const eqWeight = 10_000_000 / allTickers.length;
+    const shares = {};
+    for (const t of allTickers) shares[t] = base[t] > 0 ? eqWeight / base[t] : 0;
+    const benchTicks = [], benchVals = [];
+    for (const f of feed) {
+      let bv = 0;
+      for (const t of allTickers) bv += shares[t] * (f.data[t]?.price || base[t]);
+      benchTicks.push(f.tick); benchVals.push(bv);
+    }
+    traces.push({ x: benchTicks, y: benchVals, name: 'Equal-Weight Benchmark', type: 'scatter', mode: 'lines', line: { color: '#64748b', width: 1.5, dash: 'dash' } });
+  }
+
+  const caShapes = caList.filter(ca => ca.tick != null).map(ca => ({ type:'line', x0:ca.tick, x1:ca.tick, y0:0, y1:1, yref:'paper', line:{ color:'rgba(245,158,11,0.4)', width:1, dash:'dot' } }));
+  const caAnno = caList.filter(ca => ca.tick != null).map((ca,i) => ({ x:ca.tick, y:1-0.05*(i%4), yref:'paper', text:`${ca.type?.substring(0,8)} (${ca.ticker})`, showarrow:false, font:{size:8,color:'#f59e0b'}, bgcolor:'rgba(245,158,11,0.1)', borderpad:2 }));
+
+  Plotly.newPlot('chartNAV', traces, { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'NAV ($)'}, shapes:caShapes, annotations:caAnno, showlegend:true, legend:{font:{size:10}} }, PCFG);
+}
+
+function renderCashInvest(ctx) {
+  const { snaps } = ctx;
+  const ticks = snaps.map(s=>s.tick);
+  Plotly.newPlot('chartCashInvest', [
+    { x: ticks, y: snaps.map(s=>s.pv-s.cash), name:'Invested', type:'scatter', mode:'lines', fill:'tozeroy', line:{color:'#3b82f6',width:1}, fillcolor:'rgba(59,130,246,0.3)' },
+    { x: ticks, y: snaps.map(s=>s.cash), name:'Cash', type:'scatter', mode:'lines', fill:'tozeroy', line:{color:'#10b981',width:1}, fillcolor:'rgba(16,185,129,0.3)' },
+  ], { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'Value ($)'}, showlegend:true }, PCFG);
+}
+
+function renderHoldingsCount(ctx) {
+  const { snaps } = ctx;
+  const ticks = snaps.map(s=>s.tick);
+  Plotly.newPlot('chartHoldCount', [
+    { x: ticks, y: snaps.map(s=>s.nHoldings), name:'Holdings', type:'scatter', mode:'lines', fill:'tozeroy', line:{color:'#06b6d4',width:2}, fillcolor:'rgba(6,182,212,0.1)' },
+    { x: [ticks[0]||0, ticks[ticks.length-1]||389], y: [30,30], name:'TC004 Limit', type:'scatter', mode:'lines', line:{color:'#ef4444',width:2,dash:'dash'} },
+  ], { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'# Holdings',range:[0,35]}, showlegend:true }, PCFG);
+}
+
+function renderTradeActivity(ctx) {
+  const { orders } = ctx;
+  const buyByTick = {}, sellByTick = {}, volByTick = {};
+  for (const o of orders) {
+    const t = o.tick_index ?? 0;
+    const q = o.quantity || o.qty || 0;
+    const side = (o.side||'').toUpperCase();
+    if (side === 'BUY') buyByTick[t] = (buyByTick[t]||0) + q;
+    else sellByTick[t] = (sellByTick[t]||0) + q;
+    volByTick[t] = (volByTick[t]||0) + Math.abs(q * (o.exec_price || o.price || 0));
+  }
+  const allTicks = [...new Set([...Object.keys(buyByTick),...Object.keys(sellByTick)])].map(Number).sort((a,b)=>a-b);
+  Plotly.newPlot('chartTradeAct', [
+    { x: allTicks, y: allTicks.map(t=>buyByTick[t]||0), name:'Buy Qty', type:'bar', marker:{color:'rgba(16,185,129,0.7)'} },
+    { x: allTicks, y: allTicks.map(t=>-(sellByTick[t]||0)), name:'Sell Qty', type:'bar', marker:{color:'rgba(239,68,68,0.7)'} },
+  ], { ...PLOTLY_BASE, barmode:'relative', xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'Shares (buy + / sell -)'}, showlegend:true }, PCFG);
+}
+
+function renderRollingSharpe(ctx) {
+  const { snaps } = ctx;
+  const values = snaps.map(s=>s.pv);
+  const logRets = [];
+  for (let i=1;i<values.length;i++) if(values[i-1]>0&&values[i]>0) logRets.push(Math.log(values[i]/values[i-1]));
+  const window = 20;
+  const ticks = [], sharpes = [];
+  for (let i = window; i < logRets.length; i++) {
+    const slice = logRets.slice(i-window, i);
+    const m = mean(slice), s = std(slice);
+    sharpes.push(s > 1e-10 ? m/s : 0);
+    ticks.push(snaps[i+1]?.tick ?? i+1);
+  }
+  Plotly.newPlot('chartRollSharpe', [
+    { x: ticks, y: sharpes, type:'scatter', mode:'lines', line:{color:'#f59e0b',width:2}, fill:'tozeroy', fillcolor:'rgba(245,158,11,0.08)' },
+    { x:[ticks[0]||0,ticks[ticks.length-1]||389], y:[0,0], type:'scatter', mode:'lines', line:{color:'#475569',width:1,dash:'dash'}, showlegend:false }
+  ], { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'Rolling Sharpe'}, showlegend:false }, PCFG);
+}
+
+function renderCumTurnover(ctx) {
+  const { orders, snaps } = ctx;
+  const avgPV = snaps.length ? snaps.reduce((s,v)=>s+v.pv,0)/snaps.length : 10_000_000;
+  const sorted = [...orders].sort((a,b)=>(a.tick_index||0)-(b.tick_index||0));
+  let cum = 0;
+  const ticks = [0], cumVals = [0];
+  for (const o of sorted) {
+    cum += Math.abs((o.quantity||o.qty||0) * (o.exec_price||o.price||0));
+    ticks.push(o.tick_index||0);
+    cumVals.push(cum / avgPV);
+  }
+  const maxTick = snaps.length ? snaps[snaps.length-1].tick : 389;
+  Plotly.newPlot('chartCumTurnover', [
+    { x: ticks, y: cumVals.map(v=>v*100), type:'scatter', mode:'lines', line:{color:'#06b6d4',width:2}, fill:'tozeroy', fillcolor:'rgba(6,182,212,0.1)', name:'Cumulative Turnover' },
+    { x:[0,maxTick], y:[30,30], type:'scatter', mode:'lines', line:{color:'#ef4444',width:2,dash:'dash'}, name:'30% Limit' },
+  ], { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'Turnover (%)',range:[0,Math.max(35,Math.max(...cumVals)*100+5)]}, showlegend:true }, PCFG);
+}
+
+function renderWaterfall(ctx) {
+  const { snaps, orders } = ctx;
+  const totalFees = orders.reduce((s,o)=>s+(o.fees||0),0);
+  const finalVal = snaps.length ? snaps[snaps.length-1].pv : 10_000_000;
+  const grossPnl = finalVal - 10_000_000 + totalFees;
+
+  Plotly.newPlot('chartWaterfall', [{
+    type: 'waterfall', orientation: 'v',
+    x: ['Starting Cash', 'Gross Trading PnL', 'Transaction Fees', 'Final NAV'],
+    y: [10_000_000, grossPnl, -totalFees, 0],
+    measure: ['absolute', 'relative', 'relative', 'total'],
+    connector: { line: { color: '#475569', width: 1 } },
+    increasing: { marker: { color: 'rgba(16,185,129,0.7)' } },
+    decreasing: { marker: { color: 'rgba(239,68,68,0.7)' } },
+    totals: { marker: { color: 'rgba(139,92,246,0.7)' } },
+    textposition: 'outside',
+    text: ['$10.0M', `${grossPnl>=0?'+':''}$${(grossPnl/1000).toFixed(1)}K`, `-$${(totalFees/1000).toFixed(1)}K`, `$${(finalVal/1e6).toFixed(3)}M`],
+    textfont: { size: 10, color: '#94a3b8' }
+  }], { ...PLOTLY_BASE, yaxis:{...PLOTLY_BASE.yaxis,title:'Value ($)'}, showlegend:false }, PCFG);
+}
+
+function renderRetDist(ctx) {
+  const { snaps } = ctx;
+  const values = snaps.map(s=>s.pv);
+  const rets = [];
+  for (let i=1;i<values.length;i++) if(values[i-1]>0&&values[i]>0) rets.push(Math.log(values[i]/values[i-1])*100);
+  Plotly.newPlot('chartRetDist', [{
+    x: rets, type: 'histogram', nbinsx: 50,
+    marker: { color: 'rgba(139,92,246,0.6)', line: { color: '#8b5cf6', width: 1 } },
+    hovertemplate: 'Return: %{x:.4f}%<br>Count: %{y}<extra></extra>'
+  }], { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Log Return (%)'}, yaxis:{...PLOTLY_BASE.yaxis,title:'Frequency'}, showlegend:false, shapes:[{type:'line',x0:0,x1:0,y0:0,y1:1,yref:'paper',line:{color:'#ef4444',width:1,dash:'dash'}}] }, PCFG);
+}
+
+function renderSectorAllocation(ctx) {
+  const { snaps } = ctx;
+  const sectors = ['TECH','FINANCE','HEALTHCARE','ENERGY','CONSUMER'];
+  const sectorWeights = {};
+  for (const s of sectors) sectorWeights[s] = [];
+  const ticks = [];
+  for (const snap of snaps) {
+    ticks.push(snap.tick);
+    const totInvested = snap.pv - snap.cash;
+    const sw = {};
+    for (const s of sectors) sw[s] = 0;
+    for (const [t, h] of Object.entries(snap.holdings)) {
+      if (h.qty > 0) { const sec = tickerSector(t); sw[sec] = (sw[sec]||0) + (h.value || h.qty * h.price || 0); }
+    }
+    for (const s of sectors) sectorWeights[s].push(totInvested > 0 ? sw[s] / snap.pv * 100 : 0);
+  }
+  const traces = sectors.map(s => ({
+    x: ticks, y: sectorWeights[s], name: s, type: 'scatter', mode: 'lines', stackgroup: 'one',
+    line: { width: 0.5, color: SECTOR_COLORS[s] }, fillcolor: (SECTOR_COLORS[s]||'#64748b') + '66'
+  }));
+  Plotly.newPlot('chartSectorAlloc', traces, { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'Weight (%)',range:[0,100]}, showlegend:true }, PCFG);
+}
+
+function renderSectorPie(ctx) {
+  const { snaps } = ctx;
+  if (!snaps.length) return;
+  const last = snaps[snaps.length - 1];
+  const sectorVals = {};
+  for (const [t, h] of Object.entries(last.holdings)) {
+    if (h.qty > 0) { const s = tickerSector(t); sectorVals[s] = (sectorVals[s]||0) + (h.value || h.qty * h.price || 0); }
+  }
+  const cashVal = last.cash;
+  const labels = [...Object.keys(sectorVals), 'CASH'];
+  const vals = [...Object.values(sectorVals), cashVal];
+  const colors = labels.map(l => l === 'CASH' ? '#475569' : (SECTOR_COLORS[l]||'#64748b'));
+  Plotly.newPlot('chartSectorPie', [{
+    labels, values: vals, type: 'pie', hole: 0.45,
+    marker: { colors },
+    textinfo: 'label+percent', textfont: { size: 11, color: '#e2e8f0' },
+    hovertemplate: '<b>%{label}</b><br>$%{value:,.0f}<br>%{percent}<extra></extra>'
+  }], { ...PLOTLY_BASE, showlegend: true, legend: { font: { size: 10 } } }, PCFG);
+}
+
+function renderTopHoldings(ctx) {
+  const { snaps } = ctx;
+  if (!snaps.length) return;
+  const last = snaps[snaps.length - 1];
+  const items = [];
+  for (const [t, h] of Object.entries(last.holdings)) {
+    if (h.qty > 0) items.push({ ticker: t, value: h.value || h.qty * h.price, weight: (h.value || h.qty * h.price) / last.pv * 100 });
+  }
+  items.sort((a,b) => b.weight - a.weight);
+  const top = items.slice(0, 20);
+  Plotly.newPlot('chartTopHoldings', [{
+    y: top.map(i=>i.ticker).reverse(), x: top.map(i=>i.weight).reverse(), type: 'bar', orientation: 'h',
+    marker: { color: top.map(i=>SECTOR_COLORS[tickerSector(i.ticker)]||'#64748b').reverse() },
+    text: top.map(i=>`${i.weight.toFixed(2)}%`).reverse(), textposition: 'outside', textfont: { size: 10, color: '#94a3b8' },
+    hovertemplate: '<b>%{y}</b><br>Weight: %{x:.2f}%<extra></extra>'
+  }], { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Weight (%)'}, yaxis:{...PLOTLY_BASE.yaxis,tickfont:{size:10}}, showlegend:false }, PCFG);
+}
+
+function renderDrawdown(ctx) {
+  const { snaps } = ctx;
+  const values = snaps.map(s=>s.pv);
+  const ticks = snaps.map(s=>s.tick);
+  let peak = values[0] || 10_000_000;
+  const dd = values.map(v => { if(v>peak) peak=v; return (v-peak)/peak*100; });
+  Plotly.newPlot('chartDrawdown', [{
+    x: ticks, y: dd, type:'scatter', mode:'lines', fill:'tozeroy',
+    line:{color:'#ef4444',width:1.5}, fillcolor:'rgba(239,68,68,0.15)',
+    hovertemplate:'Tick %{x}<br>Drawdown: %{y:.3f}%<extra></extra>'
+  }], { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'Drawdown (%)'}, showlegend:false }, PCFG);
+}
+
+function renderCAAudit(ctx) {
+  const { caList, orders } = ctx;
+  const el = document.getElementById('caAudit');
+  if (!el) return;
+  if (!caList.length) { el.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px">No corporate actions loaded</p>'; return; }
+
+  const sorted = [...caList].sort((a,b)=>(a.tick??999)-(b.tick??999));
+  el.innerHTML = sorted.map(ca => {
+    const ticker = ca.ticker || '';
+    const tick = ca.tick;
+    const caType = (ca.type||'').toUpperCase();
+    const expectedBeh = ca.expected_behaviour || '';
+
+    let reactionIcon = 'na', reactionText = 'Tick not disclosed (live event)';
+    if (tick != null) {
+      const windowStart = tick, windowEnd = tick + 15;
+      const relevantOrders = orders.filter(o => {
+        const ot = o.tick_index ?? 0;
+        const oTicker = o.ticker || '';
+        return ticker.split(',').some(tk => oTicker === tk.trim()) && ot >= windowStart && ot <= windowEnd;
+      });
+
+      if (relevantOrders.length > 0) {
+        const sides = relevantOrders.map(o => (o.side||'').toUpperCase());
+        reactionIcon = 'reacted';
+        reactionText = `Traded ${relevantOrders.length}x within ${windowEnd-windowStart} ticks: ${sides.join(', ')}`;
+      } else {
+        reactionIcon = 'missed';
+        reactionText = `No trades on ${ticker} within ticks ${windowStart}–${windowEnd}`;
+      }
+    }
+
+    return `<div class="ca-audit-item">
+      <div class="ca-audit-icon ${reactionIcon}">${reactionIcon==='reacted'?'✓':reactionIcon==='missed'?'✗':'?'}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;color:${reactionIcon==='reacted'?'var(--accent-green)':reactionIcon==='missed'?'var(--accent-red)':'var(--text-muted)'}">${caType} — ${ticker} ${tick!=null?'(Tick '+tick+')':'(Live)'}</div>
+        <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">${reactionText}</div>
+        ${expectedBeh?`<div style="font-size:10px;color:var(--text-muted);margin-top:2px">Expected: ${expectedBeh}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderLLMUsage(ctx) {
+  const { llmLog, caList } = ctx;
+  const cumTicks = [], cumCalls = [];
+  llmLog.sort((a,b)=>(a.tick_index||0)-(b.tick_index||0));
+  for (let i = 0; i < llmLog.length; i++) {
+    cumTicks.push(llmLog[i].tick_index ?? i);
+    cumCalls.push(i + 1);
+  }
+  const caShapes = caList.filter(ca=>ca.tick!=null).map(ca=>({type:'line',x0:ca.tick,x1:ca.tick,y0:0,y1:1,yref:'paper',line:{color:'rgba(245,158,11,0.3)',width:1,dash:'dot'}}));
+  Plotly.newPlot('chartLLMUsage', [{
+    x: cumTicks, y: cumCalls, type:'scatter', mode:'lines+markers',
+    line:{color:'#f59e0b',width:2}, marker:{size:5,color:'#f59e0b'},
+    hovertemplate:'Tick %{x}<br>Call #%{y}<extra></extra>'
+  }], { ...PLOTLY_BASE, height:190, margin:{...PLOTLY_BASE.margin,t:10,b:30}, xaxis:{...PLOTLY_BASE.xaxis,title:'Tick'}, yaxis:{...PLOTLY_BASE.yaxis,title:'Cumulative Calls'}, shapes:caShapes, showlegend:false }, PCFG);
+
+  const el = document.getElementById('llmLogList');
+  if (!el) return;
+  el.innerHTML = llmLog.slice(0,50).map((l,i) => {
+    const prompt = l.prompt || '';
+    const resp = l.response || '';
+    return `<div class="llm-item">
+      <span class="llm-tick">Tick ${l.tick_index??'?'}</span> Call #${l.call_number||i+1}
+      <div class="llm-prompt" onclick="this.classList.toggle('expanded')">Prompt: ${escapeHtml(prompt.substring(0,200))}${prompt.length>200?'...':''}</div>
+      <div class="llm-response" onclick="this.classList.toggle('expanded')">Response: ${escapeHtml((typeof resp==='string'?resp:JSON.stringify(resp)).substring(0,200))}</div>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderOrdersTable(ctx) {
+  const { orders } = ctx;
+  const el = document.getElementById('ordersTableWrap');
+  if (!el) return;
+  const cols = [
+    {key:'tick_index',label:'Tick'}, {key:'ticker',label:'Ticker'}, {key:'side',label:'Side'},
+    {key:'quantity',label:'Qty'}, {key:'exec_price',label:'Price'}, {key:'trade_value',label:'Value'},
+    {key:'fees',label:'Fees'}
+  ];
+  let sortCol = 'tick_index', sortDir = 1;
+
+  function render() {
+    const sorted = [...orders].sort((a,b) => {
+      let va = a[sortCol]??a.qty??a.price??0, vb = b[sortCol]??b.qty??b.price??0;
+      if (sortCol==='quantity') { va=a.quantity||a.qty||0; vb=b.quantity||b.qty||0; }
+      if (sortCol==='exec_price') { va=a.exec_price||a.price||0; vb=b.exec_price||b.price||0; }
+      return (typeof va==='string'?va.localeCompare(vb):va-vb)*sortDir;
+    });
+    el.innerHTML = `<table class="data-table"><thead><tr>${cols.map(c=>`<th data-col="${c.key}">${c.label} ${sortCol===c.key?(sortDir>0?'▲':'▼'):''}</th>`).join('')}</tr></thead><tbody>${sorted.map(o => {
+      const side = (o.side||'').toUpperCase();
+      const qty = o.quantity||o.qty||0;
+      const price = o.exec_price||o.price||0;
+      const val = o.trade_value||(qty*price);
+      const fees = o.fees||0;
+      return `<tr>
+        <td>${o.tick_index??0}</td>
+        <td><span style="color:${SECTOR_COLORS[tickerSector(o.ticker||'')]||'#94a3b8'}">${o.ticker||''}</span></td>
+        <td class="${side==='BUY'?'buy-tag':'sell-tag'}">${side}</td>
+        <td>${qty.toLocaleString()}</td>
+        <td>$${price.toFixed(2)}</td>
+        <td>$${val.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+        <td>$${fees.toFixed(2)}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+    el.querySelectorAll('th').forEach(th=>{th.onclick=()=>{const c=th.dataset.col;if(sortCol===c)sortDir*=-1;else{sortCol=c;sortDir=1;}render();};});
+  }
+  render();
+}
+
+function renderTickerPnL(ctx) {
+  const { orders, snaps } = ctx;
+  const pnlByTicker = {};
+  const costBasis = {};
+
+  for (const o of [...orders].sort((a,b)=>(a.tick_index||0)-(b.tick_index||0))) {
+    const t = o.ticker||'';
+    const side = (o.side||'').toUpperCase();
+    const qty = o.quantity||o.qty||0;
+    const price = o.exec_price||o.price||0;
+    const fees = o.fees||0;
+
+    if (!pnlByTicker[t]) { pnlByTicker[t] = 0; costBasis[t] = { qty: 0, totalCost: 0 }; }
+    if (side === 'BUY') {
+      costBasis[t].totalCost += qty * price + fees;
+      costBasis[t].qty += qty;
+    } else if (side === 'SELL') {
+      const avgCost = costBasis[t].qty > 0 ? costBasis[t].totalCost / costBasis[t].qty : price;
+      pnlByTicker[t] += qty * (price - avgCost) - fees;
+      costBasis[t].qty -= qty;
+      costBasis[t].totalCost = costBasis[t].qty > 0 ? costBasis[t].qty * avgCost : 0;
+    }
+  }
+
+  if (snaps.length) {
+    const lastSnap = snaps[snaps.length-1];
+    for (const [t, h] of Object.entries(lastSnap.holdings)) {
+      if (h.qty > 0 && costBasis[t]) {
+        const avgCost = costBasis[t].qty > 0 ? costBasis[t].totalCost / costBasis[t].qty : 0;
+        const currentPrice = h.price || 0;
+        pnlByTicker[t] = (pnlByTicker[t]||0) + h.qty * (currentPrice - avgCost);
+      }
+    }
+  }
+
+  const items = Object.entries(pnlByTicker).map(([t,pnl])=>({ticker:t,pnl})).sort((a,b)=>b.pnl-a.pnl);
+  if (!items.length) return;
+
+  Plotly.newPlot('chartTickerPnL', [{
+    x: items.map(i=>i.ticker), y: items.map(i=>i.pnl), type:'bar',
+    marker: { color: items.map(i=>i.pnl>=0?'rgba(16,185,129,0.7)':'rgba(239,68,68,0.7)') },
+    hovertemplate: '<b>%{x}</b><br>PnL: $%{y:,.0f}<extra></extra>'
+  }], { ...PLOTLY_BASE, xaxis:{...PLOTLY_BASE.xaxis,title:'Ticker',tickangle:-45,tickfont:{size:9}}, yaxis:{...PLOTLY_BASE.yaxis,title:'Estimated PnL ($)'}, showlegend:false, shapes:[{type:'line',x0:0,x1:1,xref:'paper',y0:0,y1:0,line:{color:'#475569',width:1,dash:'dash'}}] }, PCFG);
+}
+</script>
+</body>
+</html>

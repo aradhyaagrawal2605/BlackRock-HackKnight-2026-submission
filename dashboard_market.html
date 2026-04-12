@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlackRock HackKnight 2026 — Market Data Explorer</title>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+<style>
+:root {
+  --bg-primary: #0a0e17;
+  --bg-card: #111827;
+  --bg-card-hover: #1a2332;
+  --border: #1e293b;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent-green: #10b981;
+  --accent-red: #ef4444;
+  --accent-blue: #3b82f6;
+  --accent-purple: #8b5cf6;
+  --accent-amber: #f59e0b;
+  --accent-cyan: #06b6d4;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg-primary); color: var(--text-primary); font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; }
+.header { background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border-bottom: 1px solid var(--border); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; }
+.header h1 { font-size: 22px; font-weight: 700; }
+.header h1 span { color: var(--accent-green); }
+.header .subtitle { color: var(--text-secondary); font-size: 13px; margin-top: 2px; }
+.load-section { display: flex; gap: 10px; align-items: center; }
+.load-btn { background: var(--accent-blue); color: #fff; border: none; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background .2s; }
+.load-btn:hover { background: #2563eb; }
+.load-btn.loaded { background: var(--accent-green); }
+.status-badge { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-size: 12px; color: var(--text-secondary); }
+input[type="file"] { display: none; }
+.grid { display: grid; gap: 16px; padding: 20px 32px; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+.grid-full { grid-template-columns: 1fr; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.card-header { padding: 14px 18px 0; display: flex; justify-content: space-between; align-items: center; }
+.card-header h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.card-header .tag { font-size: 11px; color: var(--text-muted); background: var(--bg-primary); padding: 3px 8px; border-radius: 4px; }
+.card-body { padding: 8px 10px 10px; }
+.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 0 32px; margin-bottom: 4px; }
+.kpi { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; }
+.kpi .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+.kpi .sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.filter-bar { padding: 12px 32px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.filter-bar label { font-size: 12px; color: var(--text-secondary); }
+.filter-bar select, .filter-bar input { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; }
+.filter-bar select { min-width: 120px; }
+table.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.data-table thead th { background: var(--bg-primary); color: var(--text-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; padding: 8px 10px; text-align: left; position: sticky; top: 0; cursor: pointer; user-select: none; }
+table.data-table thead th:hover { color: var(--text-primary); }
+table.data-table tbody td { padding: 7px 10px; border-top: 1px solid var(--border); color: var(--text-secondary); }
+table.data-table tbody tr:hover td { background: var(--bg-card-hover); color: var(--text-primary); }
+.table-wrap { max-height: 400px; overflow-y: auto; }
+.table-wrap::-webkit-scrollbar { width: 6px; }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.pos { color: var(--accent-green); }
+.neg { color: var(--accent-red); }
+.sector-tag { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+.sector-TECH { background: rgba(59,130,246,0.2); color: #60a5fa; }
+.sector-FINANCE { background: rgba(16,185,129,0.2); color: #34d399; }
+.sector-HEALTHCARE { background: rgba(139,92,246,0.2); color: #a78bfa; }
+.sector-ENERGY { background: rgba(245,158,11,0.2); color: #fbbf24; }
+.sector-CONSUMER { background: rgba(6,182,212,0.2); color: #22d3ee; }
+.ca-timeline { padding: 12px 18px; }
+.ca-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.ca-item:last-child { border-bottom: none; }
+.ca-tick { min-width: 60px; font-size: 12px; font-weight: 700; color: var(--accent-amber); }
+.ca-type { font-size: 12px; font-weight: 600; }
+.ca-desc { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-state h3 { margin-bottom: 8px; font-size: 16px; }
+@media (max-width: 1200px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } .kpi-row { grid-template-columns: repeat(3, 1fr); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>BlackRock HackKnight 2026 — <span>Market Data Explorer</span></h1>
+    <div class="subtitle">50 tickers · 5 sectors · 390 ticks · Corporate actions & fundamentals</div>
+  </div>
+  <div class="load-section">
+    <button class="load-btn" id="btnLoadFeed" onclick="document.getElementById('fileFeed').click()">Load Market Feed</button>
+    <input type="file" id="fileFeed" accept=".json" onchange="loadFile(this, 'feed')">
+    <button class="load-btn" id="btnLoadFund" onclick="document.getElementById('fileFund').click()">Load Fundamentals</button>
+    <input type="file" id="fileFund" accept=".json" onchange="loadFile(this, 'fund')">
+    <button class="load-btn" id="btnLoadCA" onclick="document.getElementById('fileCA').click()">Load Corp Actions</button>
+    <input type="file" id="fileCA" accept=".json" onchange="loadFile(this, 'ca')">
+    <button class="load-btn" id="btnAutoLoad" onclick="autoLoadFromPaths()">Auto-Load (Relative)</button>
+    <span class="status-badge" id="statusBadge">No data loaded</span>
+  </div>
+</div>
+
+<div class="kpi-row" id="kpiRow" style="margin-top: 16px;">
+  <div class="kpi"><div class="label">Tickers</div><div class="value" id="kpiTickers">—</div><div class="sub">Across all sectors</div></div>
+  <div class="kpi"><div class="label">Total Ticks</div><div class="value" id="kpiTicks">—</div><div class="sub">Trading session</div></div>
+  <div class="kpi"><div class="label">Sectors</div><div class="value" id="kpiSectors">—</div><div class="sub">Industry groups</div></div>
+  <div class="kpi"><div class="label">Corp Actions</div><div class="value" id="kpiCA">—</div><div class="sub">Scheduled events</div></div>
+  <div class="kpi"><div class="label">Avg Price</div><div class="value" id="kpiAvgPrice">—</div><div class="sub">Across all tickers (tick 0)</div></div>
+  <div class="kpi"><div class="label">Avg Volume</div><div class="value" id="kpiAvgVol">—</div><div class="sub">Per ticker per tick</div></div>
+</div>
+
+<div class="filter-bar" id="filterBar" style="display:none;">
+  <label>Sector:</label>
+  <select id="filterSector" onchange="applyFilters()"><option value="ALL">All Sectors</option></select>
+  <label>Tickers:</label>
+  <select id="filterTicker" multiple size="1" onchange="applyFilters()"></select>
+  <label>Tick Range:</label>
+  <input type="number" id="filterTickStart" value="0" min="0" style="width:60px" onchange="applyFilters()">
+  <span style="color:var(--text-muted)">to</span>
+  <input type="number" id="filterTickEnd" value="389" min="0" style="width:60px" onchange="applyFilters()">
+</div>
+
+<div id="mainContent">
+  <div class="empty-state">
+    <h3>Load Data to Begin</h3>
+    <p>Click "Auto-Load" to fetch from relative paths, or use the file buttons to load JSON files manually.</p>
+  </div>
+</div>
+
+<script>
+const SECTOR_COLORS = { TECH: '#3b82f6', FINANCE: '#10b981', HEALTHCARE: '#8b5cf6', ENERGY: '#f59e0b', CONSUMER: '#06b6d4' };
+const PLOTLY_LAYOUT_BASE = { paper_bgcolor: '#111827', plot_bgcolor: '#0a0e17', font: { color: '#94a3b8', size: 11 }, margin: { t: 30, r: 20, b: 40, l: 50 }, xaxis: { gridcolor: '#1e293b', zerolinecolor: '#1e293b' }, yaxis: { gridcolor: '#1e293b', zerolinecolor: '#1e293b' } };
+const PLOTLY_CONFIG = { responsive: true, displayModeBar: true, modeBarButtonsToRemove: ['lasso2d', 'select2d'], displaylogo: false };
+
+let DATA = { feed: null, fund: null, ca: null };
+let PARSED = { tickers: [], sectors: {}, tickerSector: {}, prices: {}, volumes: {}, ticks: [], caList: [], fundMap: {} };
+
+function loadFile(input, key) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      DATA[key] = JSON.parse(e.target.result);
+      document.getElementById('btn' + (key === 'feed' ? 'LoadFeed' : key === 'fund' ? 'LoadFund' : 'LoadCA')).classList.add('loaded');
+      tryRender();
+    } catch (err) { alert('Invalid JSON: ' + err.message); }
+  };
+  reader.readAsText(file);
+}
+
+async function autoLoadFromPaths() {
+  const base = 'starter_kit - IIT Delhi Hackathon/Starter_Kit/';
+  const files = [
+    [base + 'market_feed_sample.json', 'feed'],
+    [base + 'fundamentals.json', 'fund'],
+    [base + 'corporate_actions.json', 'ca'],
+  ];
+  let loaded = 0;
+  for (const [path, key] of files) {
+    try {
+      const resp = await fetch(path);
+      if (resp.ok) { DATA[key] = await resp.json(); loaded++; }
+    } catch(e) {}
+  }
+  if (loaded === 0) {
+    const altFiles = [['market_feed_sample.json','feed'],['fundamentals.json','fund'],['corporate_actions.json','ca']];
+    for (const [path, key] of altFiles) {
+      try { const resp = await fetch(path); if (resp.ok) { DATA[key] = await resp.json(); loaded++; } } catch(e) {}
+    }
+  }
+  if (loaded > 0) tryRender();
+  else alert('Auto-load failed. Please load files manually using the buttons.');
+}
+
+function normalizeFeed(raw) {
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : (raw.ticks || []);
+  return arr.map(tick => {
+    const idx = tick.tick_index ?? tick.tick ?? 0;
+    let tickerData = {};
+    if (tick.tickers && Array.isArray(tick.tickers)) {
+      for (const t of tick.tickers) tickerData[t.ticker] = { price: parseFloat(t.price), volume: parseInt(t.volume || 0), sector: t.sector || '' };
+    } else if (tick.prices && typeof tick.prices === 'object') {
+      for (const [k, v] of Object.entries(tick.prices)) {
+        tickerData[k] = { price: typeof v === 'object' ? parseFloat(v.price || v) : parseFloat(v), volume: typeof v === 'object' ? parseInt(v.volume || 0) : 0, sector: '' };
+      }
+    }
+    return { tick_index: idx, ts: tick.ts || '', data: tickerData };
+  });
+}
+
+function normalizeFund(raw) {
+  if (!raw) return {};
+  if (Array.isArray(raw)) {
+    const m = {};
+    for (const f of raw) m[f.ticker] = f;
+    return m;
+  }
+  return raw;
+}
+
+function normalizeCA(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  return raw.actions || [];
+}
+
+function parseData() {
+  const ticks = normalizeFeed(DATA.feed);
+  const fundMap = normalizeFund(DATA.fund);
+  const caList = normalizeCA(DATA.ca);
+
+  const tickers = new Set();
+  const sectors = {};
+  const tickerSector = {};
+  const prices = {};
+  const volumes = {};
+
+  for (const tick of ticks) {
+    for (const [t, d] of Object.entries(tick.data)) {
+      tickers.add(t);
+      if (!prices[t]) { prices[t] = []; volumes[t] = []; }
+      prices[t].push({ tick: tick.tick_index, price: d.price });
+      volumes[t].push({ tick: tick.tick_index, volume: d.volume });
+      let sec = d.sector || (fundMap[t] ? fundMap[t].sector : '');
+      sec = sec.toUpperCase().replace('TECHNOLOGY', 'TECH');
+      if (sec) { tickerSector[t] = sec; sectors[sec] = (sectors[sec] || new Set()).add(t); }
+    }
+  }
+
+  for (const [t, f] of Object.entries(fundMap)) {
+    let sec = (f.sector || '').toUpperCase().replace('TECHNOLOGY', 'TECH');
+    if (sec && !tickerSector[t]) { tickerSector[t] = sec; sectors[sec] = (sectors[sec] || new Set()).add(t); }
+  }
+
+  PARSED = { tickers: [...tickers].sort(), sectors, tickerSector, prices, volumes, ticks, caList, fundMap };
+}
+
+function tryRender() {
+  if (!DATA.feed && !DATA.fund && !DATA.ca) return;
+  parseData();
+  updateKPIs();
+  updateFilters();
+  renderAll();
+  document.getElementById('statusBadge').textContent = `${PARSED.tickers.length} tickers · ${PARSED.ticks.length} ticks`;
+  document.getElementById('filterBar').style.display = 'flex';
+}
+
+function updateKPIs() {
+  document.getElementById('kpiTickers').textContent = PARSED.tickers.length;
+  document.getElementById('kpiTicks').textContent = PARSED.ticks.length;
+  document.getElementById('kpiSectors').textContent = Object.keys(PARSED.sectors).length;
+  document.getElementById('kpiCA').textContent = PARSED.caList.length;
+  if (PARSED.ticks.length > 0) {
+    const t0 = PARSED.ticks[0];
+    const vals = Object.values(t0.data).map(d => d.price).filter(p => p > 0);
+    document.getElementById('kpiAvgPrice').textContent = '$' + (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+    const allVols = [];
+    for (const t of PARSED.tickers) { for (const v of (PARSED.volumes[t]||[])) allVols.push(v.volume); }
+    const avgVol = allVols.length ? (allVols.reduce((a,b)=>a+b,0)/allVols.length) : 0;
+    document.getElementById('kpiAvgVol').textContent = avgVol > 1000 ? (avgVol/1000).toFixed(1)+'K' : Math.round(avgVol).toLocaleString();
+  }
+}
+
+function updateFilters() {
+  const secSel = document.getElementById('filterSector');
+  secSel.innerHTML = '<option value="ALL">All Sectors</option>';
+  for (const s of Object.keys(PARSED.sectors).sort()) {
+    secSel.innerHTML += `<option value="${s}">${s} (${PARSED.sectors[s].size})</option>`;
+  }
+  document.getElementById('filterTickEnd').value = PARSED.ticks.length > 0 ? PARSED.ticks[PARSED.ticks.length-1].tick_index : 389;
+  rebuildTickerFilter();
+}
+
+function rebuildTickerFilter() {
+  const sec = document.getElementById('filterSector').value;
+  const sel = document.getElementById('filterTicker');
+  sel.innerHTML = '';
+  const list = sec === 'ALL' ? PARSED.tickers : [...(PARSED.sectors[sec] || [])].sort();
+  for (const t of list) sel.innerHTML += `<option value="${t}" selected>${t}</option>`;
+  sel.size = Math.min(list.length, 5);
+}
+
+function getFilteredTickers() {
+  const sel = document.getElementById('filterTicker');
+  const selected = [...sel.selectedOptions].map(o => o.value);
+  return selected.length ? selected : PARSED.tickers;
+}
+
+function applyFilters() {
+  rebuildTickerFilter();
+  renderAll();
+}
+
+function renderAll() {
+  const c = document.getElementById('mainContent');
+  c.innerHTML = `
+    <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Price Time Series</h3><div class="tag">All selected tickers · Hover for details</div></div><div class="card-body"><div id="chartPrices" style="height:420px"></div></div></div></div>
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Volume Time Series</h3><div class="tag">Stacked by sector</div></div><div class="card-body"><div id="chartVolume" style="height:340px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Volume Heatmap</h3><div class="tag">Ticker × Tick</div></div><div class="card-body"><div id="chartVolHeat" style="height:340px"></div></div></div>
+    </div>
+    <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Sector Performance (Normalized to 100)</h3><div class="tag">Equal-weighted sector indices</div></div><div class="card-body"><div id="chartSectorPerf" style="height:360px"></div></div></div></div>
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Return Distribution by Sector</h3><div class="tag">Tick-over-tick log returns</div></div><div class="card-body"><div id="chartRetDist" style="height:340px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Correlation Heatmap</h3><div class="tag">Return correlations</div></div><div class="card-body"><div id="chartCorr" style="height:380px"></div></div></div>
+    </div>
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Volatility Comparison</h3><div class="tag">Std dev of log returns</div></div><div class="card-body"><div id="chartVol" style="height:340px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>Risk-Return Scatter</h3><div class="tag">Mean return vs Volatility · Bubble = avg volume</div></div><div class="card-body"><div id="chartRiskReturn" style="height:340px"></div></div></div>
+    </div>
+    <div class="grid grid-full" id="fundSection" style="display:${Object.keys(PARSED.fundMap).length?'grid':'none'}">
+      <div class="card"><div class="card-header"><h3>Fundamentals Explorer</h3><div class="tag">Scatter: select axes below</div></div><div class="card-body">
+        <div style="display:flex;gap:12px;padding:6px 8px;align-items:center;">
+          <label style="font-size:12px;color:var(--text-muted)">X:</label>
+          <select id="fundX" onchange="renderFundScatter()" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px"><option value="pe_ratio">P/E Ratio</option><option value="beta" selected>Beta</option><option value="esg_score">ESG Score</option><option value="debt_to_equity">Debt/Equity</option><option value="roe">ROE</option><option value="market_cap_bn">Mkt Cap (B)</option><option value="eps_growth_yoy">EPS Growth</option></select>
+          <label style="font-size:12px;color:var(--text-muted)">Y:</label>
+          <select id="fundY" onchange="renderFundScatter()" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px"><option value="pe_ratio" selected>P/E Ratio</option><option value="beta">Beta</option><option value="esg_score">ESG Score</option><option value="dividend_yield">Div Yield</option><option value="roe">ROE</option><option value="eps">EPS</option></select>
+          <label style="font-size:12px;color:var(--text-muted)">Size:</label>
+          <select id="fundSize" onchange="renderFundScatter()" style="background:var(--bg-primary);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:4px 8px;font-size:12px"><option value="market_cap_bn" selected>Mkt Cap</option><option value="eps">EPS</option><option value="esg_score">ESG Score</option></select>
+        </div>
+        <div id="chartFundScatter" style="height:400px"></div>
+      </div></div>
+    </div>
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>52-Week Range</h3><div class="tag">Current price vs High/Low</div></div><div class="card-body"><div id="chart52w" style="height:500px"></div></div></div>
+      <div class="card"><div class="card-header"><h3>ESG Distribution by Sector</h3><div class="tag">Box plot</div></div><div class="card-body"><div id="chartESG" style="height:500px"></div></div></div>
+    </div>
+    <div class="grid grid-2">
+      <div class="card"><div class="card-header"><h3>Corporate Actions Timeline</h3><div class="tag">${PARSED.caList.length} events</div></div><div class="ca-timeline" id="caTimeline"></div></div>
+      <div class="card"><div class="card-header"><h3>Fundamentals Table</h3><div class="tag">Click column to sort</div></div><div class="card-body"><div class="table-wrap" id="fundTableWrap"></div></div></div>
+    </div>
+    <div class="grid grid-full"><div class="card"><div class="card-header"><h3>Price Sparklines by Sector</h3><div class="tag">Small multiples</div></div><div class="card-body"><div id="chartSparklines" style="height:500px"></div></div></div></div>
+  `;
+
+  renderPriceChart();
+  renderVolumeChart();
+  renderVolumeHeatmap();
+  renderSectorPerf();
+  renderRetDist();
+  renderCorrelation();
+  renderVolatility();
+  renderRiskReturn();
+  renderFundScatter();
+  render52Week();
+  renderESG();
+  renderCATimeline();
+  renderFundTable();
+  renderSparklines();
+}
+
+function getTickRange() {
+  return [parseInt(document.getElementById('filterTickStart').value)||0, parseInt(document.getElementById('filterTickEnd').value)||389];
+}
+
+function renderPriceChart() {
+  const tickers = getFilteredTickers();
+  const [tStart, tEnd] = getTickRange();
+  const traces = [];
+  for (const t of tickers) {
+    const pts = (PARSED.prices[t]||[]).filter(p => p.tick >= tStart && p.tick <= tEnd);
+    const sec = PARSED.tickerSector[t] || 'UNKNOWN';
+    traces.push({ x: pts.map(p=>p.tick), y: pts.map(p=>p.price), name: t, type: 'scatter', mode: 'lines', line: { width: 1.5, color: SECTOR_COLORS[sec] || '#64748b' }, opacity: tickers.length > 15 ? 0.5 : 0.9, hovertemplate: `<b>${t}</b> (${sec})<br>Tick %{x}<br>$%{y:.2f}<extra></extra>` });
+  }
+  const caShapes = PARSED.caList.filter(ca => ca.tick != null && ca.tick >= tStart && ca.tick <= tEnd).map(ca => ({
+    type: 'line', x0: ca.tick, x1: ca.tick, y0: 0, y1: 1, yref: 'paper', line: { color: '#ef4444', width: 1.5, dash: 'dot' }
+  }));
+  const caAnnotations = PARSED.caList.filter(ca => ca.tick != null && ca.tick >= tStart && ca.tick <= tEnd).map((ca, i) => ({
+    x: ca.tick, y: 1 - (i % 3) * 0.06, yref: 'paper', text: `${ca.type} (${ca.ticker})`, showarrow: false, font: { size: 9, color: '#ef4444' }, bgcolor: 'rgba(239,68,68,0.1)', borderpad: 2
+  }));
+  Plotly.newPlot('chartPrices', traces, { ...PLOTLY_LAYOUT_BASE, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: 'Tick' }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: 'Price ($)' }, shapes: caShapes, annotations: caAnnotations, showlegend: tickers.length <= 20, legend: { font: { size: 10 }, bgcolor: 'rgba(0,0,0,0)' } }, PLOTLY_CONFIG);
+}
+
+function renderVolumeChart() {
+  const tickers = getFilteredTickers();
+  const [tStart, tEnd] = getTickRange();
+  const sectorVols = {};
+  for (const t of tickers) {
+    const sec = PARSED.tickerSector[t] || 'UNKNOWN';
+    if (!sectorVols[sec]) sectorVols[sec] = {};
+    for (const v of (PARSED.volumes[t]||[])) {
+      if (v.tick >= tStart && v.tick <= tEnd) {
+        sectorVols[sec][v.tick] = (sectorVols[sec][v.tick]||0) + v.volume;
+      }
+    }
+  }
+  const traces = Object.entries(sectorVols).map(([sec, data]) => {
+    const sorted = Object.entries(data).sort((a,b)=>a[0]-b[0]);
+    return { x: sorted.map(s=>parseInt(s[0])), y: sorted.map(s=>s[1]), name: sec, type: 'scatter', mode: 'lines', fill: 'tonexty', line: { width: 1, color: SECTOR_COLORS[sec] }, fillcolor: (SECTOR_COLORS[sec]||'#64748b') + '33' };
+  });
+  Plotly.newPlot('chartVolume', traces, { ...PLOTLY_LAYOUT_BASE, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: 'Tick' }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: 'Total Volume' }, showlegend: true, legend: { font: { size: 10 } } }, PLOTLY_CONFIG);
+}
+
+function renderVolumeHeatmap() {
+  const tickers = getFilteredTickers().slice(0, 50);
+  const [tStart, tEnd] = getTickRange();
+  const z = [], yLabels = [];
+  for (const t of tickers) {
+    yLabels.push(t);
+    const row = [];
+    const vols = PARSED.volumes[t] || [];
+    for (let tk = tStart; tk <= tEnd; tk++) {
+      const found = vols.find(v => v.tick === tk);
+      row.push(found ? found.volume : 0);
+    }
+    z.push(row);
+  }
+  const xLabels = [];
+  for (let tk = tStart; tk <= tEnd; tk++) xLabels.push(tk);
+  Plotly.newPlot('chartVolHeat', [{ z, x: xLabels, y: yLabels, type: 'heatmap', colorscale: [[0,'#0a0e17'],[0.5,'#1e40af'],[1,'#3b82f6']], hovertemplate: '<b>%{y}</b><br>Tick %{x}<br>Vol: %{z}<extra></extra>' }], { ...PLOTLY_LAYOUT_BASE, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: 'Tick' }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, dtick: 1, tickfont: { size: 8 } } }, PLOTLY_CONFIG);
+}
+
+function renderSectorPerf() {
+  const [tStart, tEnd] = getTickRange();
+  const sectorIdx = {};
+  for (const [sec, tickerSet] of Object.entries(PARSED.sectors)) {
+    const tickers = [...tickerSet];
+    const tickMap = {};
+    for (const t of tickers) {
+      for (const p of (PARSED.prices[t]||[])) {
+        if (p.tick >= tStart && p.tick <= tEnd) {
+          if (!tickMap[p.tick]) tickMap[p.tick] = [];
+          tickMap[p.tick].push(p.price);
+        }
+      }
+    }
+    const sorted = Object.entries(tickMap).sort((a,b)=>a[0]-b[0]);
+    if (sorted.length === 0) continue;
+    const base = sorted[0][1].reduce((a,b)=>a+b,0) / sorted[0][1].length;
+    sectorIdx[sec] = sorted.map(([tk, arr]) => ({ tick: parseInt(tk), value: (arr.reduce((a,b)=>a+b,0)/arr.length) / base * 100 }));
+  }
+  const traces = Object.entries(sectorIdx).map(([sec, data]) => ({
+    x: data.map(d=>d.tick), y: data.map(d=>d.value), name: sec, type: 'scatter', mode: 'lines', line: { width: 2.5, color: SECTOR_COLORS[sec] }
+  }));
+  traces.push({ x: [tStart, tEnd], y: [100, 100], name: 'Baseline', type: 'scatter', mode: 'lines', line: { color: '#475569', dash: 'dash', width: 1 } });
+  Plotly.newPlot('chartSectorPerf', traces, { ...PLOTLY_LAYOUT_BASE, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: 'Tick' }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: 'Index (base=100)' }, showlegend: true }, PLOTLY_CONFIG);
+}
+
+function computeLogReturns(ticker) {
+  const pts = PARSED.prices[ticker] || [];
+  const rets = [];
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i-1].price > 0 && pts[i].price > 0) rets.push(Math.log(pts[i].price / pts[i-1].price));
+  }
+  return rets;
+}
+
+function renderRetDist() {
+  const traces = [];
+  for (const [sec, tickerSet] of Object.entries(PARSED.sectors)) {
+    const allRets = [];
+    for (const t of tickerSet) allRets.push(...computeLogReturns(t));
+    if (allRets.length) traces.push({ x: allRets, name: sec, type: 'histogram', opacity: 0.6, marker: { color: SECTOR_COLORS[sec] }, nbinsx: 60 });
+  }
+  Plotly.newPlot('chartRetDist', traces, { ...PLOTLY_LAYOUT_BASE, barmode: 'overlay', xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: 'Log Return' }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: 'Frequency' }, showlegend: true }, PLOTLY_CONFIG);
+}
+
+function renderCorrelation() {
+  const tickers = getFilteredTickers().slice(0, 30);
+  const retMatrix = tickers.map(t => computeLogReturns(t));
+  const minLen = Math.min(...retMatrix.map(r => r.length));
+  if (minLen < 3) { document.getElementById('chartCorr').innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:40px">Not enough data</p>'; return; }
+  const trimmed = retMatrix.map(r => r.slice(0, minLen));
+  const n = tickers.length;
+  const corr = Array.from({length: n}, () => Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const a = trimmed[i], b = trimmed[j];
+      const ma = a.reduce((s,v)=>s+v,0)/a.length, mb = b.reduce((s,v)=>s+v,0)/b.length;
+      let num = 0, da = 0, db = 0;
+      for (let k = 0; k < minLen; k++) { num += (a[k]-ma)*(b[k]-mb); da += (a[k]-ma)**2; db += (b[k]-mb)**2; }
+      corr[i][j] = da > 0 && db > 0 ? num / Math.sqrt(da*db) : 0;
+    }
+  }
+  Plotly.newPlot('chartCorr', [{ z: corr, x: tickers, y: tickers, type: 'heatmap', colorscale: [[0,'#ef4444'],[0.5,'#0a0e17'],[1,'#10b981']], zmin: -1, zmax: 1, hovertemplate: '%{x} × %{y}<br>ρ = %{z:.3f}<extra></extra>' }], { ...PLOTLY_LAYOUT_BASE, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, tickfont: { size: 9 } }, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, tickfont: { size: 9 } } }, PLOTLY_CONFIG);
+}
+
+function renderVolatility() {
+  const tickers = getFilteredTickers();
+  const data = tickers.map(t => {
+    const rets = computeLogReturns(t);
+    const vol = rets.length > 1 ? Math.sqrt(rets.reduce((s,r)=>s+r*r,0)/rets.length - (rets.reduce((s,r)=>s+r,0)/rets.length)**2) : 0;
+    return { ticker: t, vol, sector: PARSED.tickerSector[t] || '' };
+  }).sort((a,b) => b.vol - a.vol);
+  Plotly.newPlot('chartVol', [{ x: data.map(d=>d.ticker), y: data.map(d=>d.vol*100), type: 'bar', marker: { color: data.map(d=>SECTOR_COLORS[d.sector]||'#64748b') }, hovertemplate: '<b>%{x}</b><br>Vol: %{y:.3f}%<extra></extra>' }], { ...PLOTLY_LAYOUT_BASE, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, tickangle: -45, tickfont: { size: 9 } }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: 'Volatility (%)' } }, PLOTLY_CONFIG);
+}
+
+function renderRiskReturn() {
+  const traces = [];
+  for (const [sec, tickerSet] of Object.entries(PARSED.sectors)) {
+    const xs = [], ys = [], sizes = [], texts = [];
+    for (const t of tickerSet) {
+      const rets = computeLogReturns(t);
+      if (rets.length < 2) continue;
+      const mu = rets.reduce((s,r)=>s+r,0)/rets.length;
+      const vol = Math.sqrt(rets.reduce((s,r)=>s+r*r,0)/rets.length - mu*mu);
+      const avgVol = (PARSED.volumes[t]||[]).reduce((s,v)=>s+v.volume,0) / Math.max((PARSED.volumes[t]||[]).length, 1);
+      xs.push(vol*100); ys.push(mu*100); sizes.push(Math.max(avgVol/50, 5)); texts.push(t);
+    }
+    traces.push({ x: xs, y: ys, text: texts, mode: 'markers+text', type: 'scatter', name: sec, marker: { size: sizes, color: SECTOR_COLORS[sec], opacity: 0.7, line: { width: 1, color: '#fff' } }, textposition: 'top center', textfont: { size: 8, color: '#94a3b8' }, hovertemplate: '<b>%{text}</b><br>Vol: %{x:.3f}%<br>Ret: %{y:.4f}%<extra></extra>' });
+  }
+  Plotly.newPlot('chartRiskReturn', traces, { ...PLOTLY_LAYOUT_BASE, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: 'Volatility (%)' }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: 'Mean Return (%)' }, showlegend: true }, PLOTLY_CONFIG);
+}
+
+function renderFundScatter() {
+  const el = document.getElementById('chartFundScatter');
+  if (!el || !Object.keys(PARSED.fundMap).length) return;
+  const xKey = document.getElementById('fundX')?.value || 'beta';
+  const yKey = document.getElementById('fundY')?.value || 'pe_ratio';
+  const sKey = document.getElementById('fundSize')?.value || 'market_cap_bn';
+  const traces = [];
+  for (const [sec, tickerSet] of Object.entries(PARSED.sectors)) {
+    const xs = [], ys = [], sizes = [], texts = [];
+    for (const t of tickerSet) {
+      const f = PARSED.fundMap[t]; if (!f) continue;
+      xs.push(f[xKey]??0); ys.push(f[yKey]??0); sizes.push(Math.max((f[sKey]??1)*8, 6)); texts.push(t);
+    }
+    traces.push({ x: xs, y: ys, text: texts, mode: 'markers+text', type: 'scatter', name: sec, marker: { size: sizes, color: SECTOR_COLORS[sec], opacity: 0.8, line: { width: 1, color: 'rgba(255,255,255,0.3)' } }, textposition: 'top center', textfont: { size: 8, color: '#94a3b8' }, hovertemplate: `<b>%{text}</b><br>${xKey}: %{x}<br>${yKey}: %{y}<extra></extra>` });
+  }
+  Plotly.newPlot('chartFundScatter', traces, { ...PLOTLY_LAYOUT_BASE, xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: xKey.replace(/_/g,' ') }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: yKey.replace(/_/g,' ') }, showlegend: true }, PLOTLY_CONFIG);
+}
+
+function render52Week() {
+  const el = document.getElementById('chart52w');
+  if (!el || !Object.keys(PARSED.fundMap).length) { if(el) el.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:40px">Load fundamentals.json</p>'; return; }
+  const tickers = getFilteredTickers().filter(t => PARSED.fundMap[t]);
+  const currentPrices = {};
+  if (PARSED.ticks.length) {
+    const lastTick = PARSED.ticks[PARSED.ticks.length - 1];
+    for (const [t, d] of Object.entries(lastTick.data)) currentPrices[t] = d.price;
+  }
+  const yLabels = [], lows = [], highs = [], currents = [];
+  for (const t of tickers) {
+    const f = PARSED.fundMap[t];
+    yLabels.push(t); lows.push(f.low_52w || 0); highs.push(f.high_52w || 0); currents.push(currentPrices[t] || 0);
+  }
+  Plotly.newPlot(el, [
+    { y: yLabels, x: lows, name: '52W Low', type: 'bar', orientation: 'h', marker: { color: 'rgba(239,68,68,0.5)' } },
+    { y: yLabels, x: highs.map((h,i)=>h-lows[i]), name: '52W Range', type: 'bar', orientation: 'h', marker: { color: 'rgba(59,130,246,0.3)' }, base: lows },
+    { y: yLabels, x: currents, name: 'Last Price', type: 'scatter', mode: 'markers', marker: { color: '#f59e0b', size: 8, symbol: 'diamond' } }
+  ], { ...PLOTLY_LAYOUT_BASE, barmode: 'overlay', xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: 'Price ($)' }, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, tickfont: { size: 9 }, autorange: 'reversed' }, showlegend: true }, PLOTLY_CONFIG);
+}
+
+function renderESG() {
+  const el = document.getElementById('chartESG');
+  if (!el || !Object.keys(PARSED.fundMap).length) { if(el) el.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:40px">Load fundamentals.json</p>'; return; }
+  const traces = [];
+  for (const [sec, tickerSet] of Object.entries(PARSED.sectors)) {
+    const esgVals = [];
+    for (const t of tickerSet) { const f = PARSED.fundMap[t]; if (f) esgVals.push(f.esg_score || 0); }
+    traces.push({ y: esgVals, name: sec, type: 'box', marker: { color: SECTOR_COLORS[sec] }, boxpoints: 'all', jitter: 0.3 });
+  }
+  Plotly.newPlot(el, traces, { ...PLOTLY_LAYOUT_BASE, yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: 'ESG Score' }, showlegend: true }, PLOTLY_CONFIG);
+}
+
+function renderCATimeline() {
+  const el = document.getElementById('caTimeline');
+  if (!el) return;
+  if (!PARSED.caList.length) { el.innerHTML = '<p style="color:var(--text-muted);padding:20px;text-align:center">No corporate actions loaded</p>'; return; }
+  const sorted = [...PARSED.caList].sort((a,b) => (a.tick ?? 999) - (b.tick ?? 999));
+  el.innerHTML = sorted.map(ca => {
+    const tickLabel = ca.tick != null ? `Tick ${ca.tick}` : 'TBD (Live)';
+    const typeColors = { STOCK_SPLIT: '#f59e0b', EARNINGS_SURPRISE: '#10b981', DIVIDEND_DECLARATION: '#3b82f6', MANAGEMENT_CHANGE: '#ef4444', MA_RUMOUR: '#8b5cf6', REGULATORY_FINE: '#ef4444', INDEX_REBALANCE: '#06b6d4' };
+    const color = typeColors[ca.type] || '#64748b';
+    return `<div class="ca-item"><div class="ca-tick">${tickLabel}</div><div><div class="ca-type" style="color:${color}">${ca.type} — ${ca.ticker}</div><div class="ca-desc">${ca.description || ca.id || ''}</div>${ca.in_sample === false ? '<div class="ca-desc" style="color:#ef4444">⚠ Live event — tick disclosed during competition</div>' : ''}</div></div>`;
+  }).join('');
+}
+
+function renderFundTable() {
+  const el = document.getElementById('fundTableWrap');
+  if (!el || !Object.keys(PARSED.fundMap).length) { if(el) el.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:20px">Load fundamentals.json</p>'; return; }
+  const cols = ['ticker','sector','pe_ratio','pb_ratio','eps','eps_growth_yoy','dividend_yield','debt_to_equity','roe','beta','esg_score','analyst_rating','market_cap_bn'];
+  const rows = Object.values(PARSED.fundMap);
+  let sortCol = 'ticker', sortDir = 1;
+  function render() {
+    const sorted = [...rows].sort((a,b) => { const va = a[sortCol]??'', vb = b[sortCol]??''; return (typeof va === 'string' ? va.localeCompare(vb) : va - vb) * sortDir; });
+    el.innerHTML = `<table class="data-table"><thead><tr>${cols.map(c=>`<th data-col="${c}">${c.replace(/_/g,' ').toUpperCase()} ${sortCol===c?(sortDir>0?'▲':'▼'):''}</th>`).join('')}</tr></thead><tbody>${sorted.map(r=>`<tr>${cols.map(c=>{
+      const v = r[c]; if (c==='sector') return `<td><span class="sector-tag sector-${(v||'').toUpperCase()}">${v||''}</span></td>`;
+      if (c==='eps_growth_yoy') return `<td class="${v>0?'pos':'neg'}">${(v*100).toFixed(1)}%</td>`;
+      if (c==='dividend_yield'||c==='roe') return `<td>${(v*100).toFixed(2)}%</td>`;
+      return `<td>${typeof v==='number'?v.toFixed(2):v||''}</td>`;
+    }).join('')}</tr>`).join('')}</tbody></table>`;
+    el.querySelectorAll('th').forEach(th => { th.onclick = () => { const col = th.dataset.col; if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=1; } render(); }; });
+  }
+  render();
+}
+
+function renderSparklines() {
+  const el = document.getElementById('chartSparklines');
+  if (!el) return;
+  const sectorOrder = Object.keys(PARSED.sectors).sort();
+  const subplots = [];
+  const traces = [];
+  let row = 1;
+  for (const sec of sectorOrder) {
+    const tickers = [...PARSED.sectors[sec]].sort();
+    let col = 1;
+    for (const t of tickers) {
+      const pts = PARSED.prices[t] || [];
+      const axName = `${row}_${col}`;
+      traces.push({
+        x: pts.map(p=>p.tick), y: pts.map(p=>p.price),
+        type: 'scatter', mode: 'lines', line: { width: 1, color: SECTOR_COLORS[sec] },
+        xaxis: `x${traces.length+1 === 1 ? '' : traces.length+1}`,
+        yaxis: `y${traces.length+1 === 1 ? '' : traces.length+1}`,
+        showlegend: false, hovertemplate: `<b>${t}</b><br>$%{y:.2f}<extra></extra>`
+      });
+      col++;
+    }
+    row++;
+  }
+  const nCols = 10, totalTickers = PARSED.tickers.length;
+  const nRows = Math.ceil(totalTickers / nCols);
+  const layout = { ...PLOTLY_LAYOUT_BASE, grid: { rows: nRows, columns: nCols, pattern: 'independent' }, height: nRows * 70 + 60, showlegend: false };
+  for (let i = 0; i < totalTickers; i++) {
+    const xi = i === 0 ? 'xaxis' : `xaxis${i+1}`;
+    const yi = i === 0 ? 'yaxis' : `yaxis${i+1}`;
+    layout[xi] = { showticklabels: false, showgrid: false, zeroline: false };
+    layout[yi] = { showticklabels: false, showgrid: false, zeroline: false };
+    if (traces[i]) {
+      traces[i].xaxis = i === 0 ? 'x' : `x${i+1}`;
+      traces[i].yaxis = i === 0 ? 'y' : `y${i+1}`;
+    }
+  }
+  const annotations = PARSED.tickers.sort().map((t, i) => {
+    const r = Math.floor(i / nCols), c = i % nCols;
+    return { text: t, x: c / nCols + 0.5/nCols, y: 1 - r / nRows - 0.01, xref: 'paper', yref: 'paper', showarrow: false, font: { size: 8, color: SECTOR_COLORS[PARSED.tickerSector[t]] || '#64748b' } };
+  });
+  layout.annotations = annotations;
+  Plotly.newPlot(el, traces, layout, PLOTLY_CONFIG);
+}
+</script>
+</body>
+</html>
