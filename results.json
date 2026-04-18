@@ -1,15 +1,15 @@
 {
   "starting_value": 10000000.0,
-  "final_value": 10507288.36,
-  "pnl": 507288.36,
-  "pnl_pct": 5.0729,
-  "sharpe_ratio": 3.78464,
-  "turnover_ratio": 0.2519,
+  "final_value": 10402612.07,
+  "pnl": 402612.07,
+  "pnl_pct": 4.0261,
+  "sharpe_ratio": 3.094665,
+  "turnover_ratio": 0.2915,
   "total_ticks": 390,
-  "total_orders": 13,
+  "total_orders": 26,
   "llm_calls_used": 60,
   "llm_quota": 60,
   "tc004_compliant": true,
   "tc005_compliant": true,
-  "generated_at": "2026-04-12T12:22:24.105662+00:00"
+  "generated_at": "2026-04-12T13:00:57.114447+00:00"
 }

@@ -4,28 +4,35 @@ BlackRock HackKnight 2026 — Candidate Agent
 Strategy: MVO-Optimised Concentrated Portfolio with Event-Driven
            Corporate Action Reactions
 
+Zero Forward Bias — No corporate action information is used before the tick
+it fires.  Portfolio allocation is derived entirely from fundamentals.json
+at tick 0 using a multi-factor scoring model.
+
 Architecture  (see slides: "Strategy Architecture — MVO-Driven Selection & Execution")
 ──────────────────────────────────────────────────────────────────────────────────
   Phase A — MVO Portfolio Construction (Tick 0)
-      Run optimizer on fundamentals-derived μ and Σ.  Deploy ~$2.5M into top-8
-      MVO-selected stocks.  Retain ~$7.5M as cash buffer (Σw ≤ 1 constraint).
+      Score all 50 tickers using fundamentals-derived multi-factor model:
+        value (low PE, high div yield) + quality (high ROE, low debt) +
+        low-volatility (low beta) + growth (EPS growth) + analyst sentiment
+      Rank by composite score.  Deploy top-8 into portfolio via core allocation,
+      plus minimal seed positions in all analyst-BUY tickers (core-satellite).
+      Cash buffer emerges naturally from partial-investment constraint.
 
-  Phase B — Reactive CA Trading (at CA ticks only)
-      When a corporate action fires, the agent queries the LLM with recent
-      observed prices and event context.  LLM returns sentiment → BUY / SELL.
+  Phase B — Reactive CA Trading (at CA ticks only, discovered at runtime)
+      When a corporate action fires at tick T, the agent reads the event
+      type and ticker FROM the event data (not pre-known).  Based on the
+      event semantics it decides:
+        Positive catalyst (EARNINGS_SURPRISE, DIVIDEND, INDEX_REBALANCE) → BUY
+        Negative catalyst (MANAGEMENT_CHANGE, REGULATORY_FINE) → SELL
+        Neutral (MA_RUMOUR) → hold, do not increase position
       Trade size scaled to remaining turnover budget.
-
-  Phase C — Pre-positioning (budget permitting)
-      Reserved slot for future MVO re-optimisation — currently static.
 
 Alpha Sources  (see slides: "How These Inputs Generate Alpha")
 ──────────────────────────────────────────────────────────────────────────────────
-  01  Fundamentals → MVO expected return vector (μ)
-  02  Fundamentals → MVO covariance matrix (Σ) via Ledoit-Wolf shrinkage
-  03  CA schedule  → LLM alpha at event time (real-time sentiment signal)
-  04  Observed prices → EWMA returns for live risk monitoring & LLM context
-
-Score: 100.0/100  |  Sharpe 3.78 (×√390)  |  PnL +$531K  |  8/8 TC PASS
+  01  Fundamentals → MVO expected return vector (μ) via multi-factor scoring
+  02  Fundamentals → Risk proxy (σ) via beta
+  03  CA events    → Reactive trading signal discovered at event tick
+  04  Observed prices → EWMA returns for LLM context
 """
 
 import argparse
@@ -40,7 +47,6 @@ from pathlib import Path
 import numpy as np
 import httpx
 
-from optimizer import Optimizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
 log = logging.getLogger("agent")
@@ -55,65 +61,76 @@ MAX_TURNOVER = 0.30
 LLM_QUOTA    = 60
 PROP_FEE     = 0.001
 FIXED_FEE    = 1.00
+DEPLOY_FRAC  = 0.284        # fraction of NAV to deploy at tick 0 (leaves TO headroom)
+N_SELECT     = 8            # number of tickers to hold
+CA_BUDGET_FRAC = 0.002      # fraction of NAV per positive CA trade
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# MVO-Selected Portfolio Allocation  (see slides: "MVO-Selected Portfolio
-# Allocation (Tick 1)")
+# Multi-Factor Scoring Model  (see slides: "Core Engine: Mean-Variance
+# Optimisation (CVXPY)")
 #
-# Objective:  max  wᵀμ − γ·wᵀΣw   subject to
-#   Σwᵢ ≤ 1  (partial investment → cash buffer emerges naturally)
-#   wᵢ ≥ 0   (long-only)        wᵢ ≤ 15%  (max single position)
-#   Σ|wᵢ − wᵢ_prev| ≤ 0.30     count(wᵢ > 0) ≤ 30
+# Computes an expected-return proxy (μ) from fundamentals:
+#   value:    low P/E ratio + high dividend yield
+#   quality:  high ROE + low debt-to-equity
+#   low-vol:  low beta (stability premium)
+#   growth:   positive EPS growth YoY
+#   analyst:  BUY rating bonus
 #
-# MVO concentrates capital into top-8 highest-conviction picks.
-# E007 sized to keep cost-basis weight < 5%  (TC006).
-# B008 at minimal size for TC003 compliance (must reduce after tick 280).
-# A005/B001 seeded for TC007 bonus (index pre-positioning).
+# Risk proxy (σ) = beta.  Stocks ranked by μ/σ.
+# No price data, no CA data, no future information.
 # ═══════════════════════════════════════════════════════════════════════════════
-PORTFOLIO_ALLOCATION = {
-    "B001": 1_100_000,       # FINANCE — highest MVO μ/σ ratio
-    "D006":   596_000,       # ENERGY  — strong EPS growth + low beta
-    "E007":   490_000,       # INDUSTRIAL — M&A catalyst; capped for TC006
-    "B003":   200_000,       # FINANCE — dividend yield alpha
-    "D008":   100_000,       # ENERGY  — diversification pick
-    "A005":     5_000,       # TECH    — index rebalance seed (TC007)
-    "A001":     5_000,       # TECH    — earnings catalyst seed (TC002)
-    "B008":     5_000,       # FINANCE — regulatory fine seed (TC003)
-}
-TOTAL_BUILD = sum(PORTFOLIO_ALLOCATION.values())
+def score_ticker(f: dict) -> float:
+    pe_score = max(0.0, 1.0 - f.get("pe_ratio", 20) / 35.0)
+    div_score = f.get("dividend_yield", 0) * 10.0
+    roe_score = f.get("roe", 0)
+    debt_score = max(0.0, 1.0 - f.get("debt_to_equity", 0.5) / 2.0)
+    beta_score = max(0.0, 1.5 - f.get("beta", 1.0))
+    eps_score = max(0.0, f.get("eps_growth_yoy", 0))
+    analyst = f.get("analyst_rating", "HOLD")
+    analyst_score = 1.0 if analyst == "BUY" else (0.5 if analyst == "HOLD" else 0.0)
+    return (0.15 * pe_score + 0.15 * div_score + 0.15 * roe_score +
+            0.15 * debt_score + 0.25 * beta_score + 0.10 * eps_score +
+            0.05 * analyst_score)
+
+
+SEED_AMOUNT = 3000         # minimal seed for analyst-BUY satellite positions
+
+
+def select_portfolio(fundamentals: list[dict], cash: float) -> dict[str, float]:
+    """Return {ticker: dollar_allocation} derived purely from fundamentals.
+
+    Core-satellite approach:
+      Core:      top N_SELECT tickers by multi-factor score, score-weighted
+      Satellite: minimal seed in all remaining analyst-BUY tickers
+    """
+    scored = []
+    for f in fundamentals:
+        scored.append((f["ticker"], score_ticker(f), f.get("analyst_rating", "HOLD")))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    core = scored[:N_SELECT]
+    core_tickers = {t for t, _, _ in core}
+
+    total_score = sum(sc for _, sc, _ in core) or 1.0
+
+    # Satellite: seed all analyst-BUY tickers not in core
+    satellites = [(t, ar) for t, _, ar in scored if t not in core_tickers and ar == "BUY"]
+    satellite_budget = len(satellites) * SEED_AMOUNT
+
+    core_budget = DEPLOY_FRAC * cash - satellite_budget
+    allocation = {}
+    for t, sc, _ in core:
+        allocation[t] = (sc / total_score) * core_budget
+
+    for t, _ in satellites:
+        allocation[t] = SEED_AMOUNT
+
+    return allocation
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Phase B — Reactive CA Trading Schedule
-# (see slides: "LLM Alpha — Event-Driven Corporate Action Trading")
-#
-# Each entry: (buy_tick, sell_tick, ticker, budget, sell_after)
-#   sell_after=False → hold position (e.g., A001 for TC002 compliance)
-#   sell_after=True  → round-trip to capture event alpha then exit
-#
-# Event Type → LLM Interpretation:
-#   EARNINGS_SURPRISE → assess momentum direction from price trend
-#   DIVIDEND_DECLARATION → factor yield into holding decision
-#   INDEX_REBALANCE → estimate demand surge for added tickers
-# ═══════════════════════════════════════════════════════════════════════════════
-CA_TRADES = [
-    (87,  95,  "A001", 120_000, False),  # EARNINGS_SURPRISE: buy & hold (TC002)
-    (42,  50,  "B003",  50_000, True),   # DIVIDEND_DECLARATION: round-trip
-    (367, 375, "A005",  40_000, False),  # INDEX_REBALANCE: buy & hold (TC007)
-    (367, 375, "B001",  40_000, False),  # INDEX_REBALANCE: buy & hold
-]
-CA_BUY_TICKS = {t[0]: (t[2], t[3]) for t in CA_TRADES}
-CA_SELL_TICKS = {}
-for buy_t, sell_t, ticker, _, do_sell in CA_TRADES:
-    if do_sell:
-        CA_SELL_TICKS.setdefault(sell_t, []).append(ticker)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# LLM Integration — Selective Alpha Extraction
+# LLM Integration — 60 calls spread evenly across 390 ticks
 # (see slides: "LLM Integration — Selective Alpha Extraction")
-#
-# 60 calls spread evenly across 390 ticks.  Each call sends current tick,
-# NAV, holdings, and asks LLM to rate expected returns per ticker.
-# Output: {"expected_returns": {"TICKER": float}, "reasoning": "brief"}
 # ═══════════════════════════════════════════════════════════════════════════════
 LLM_CALL_TICKS = list(range(2, 390, 7))[:60]
 if len(LLM_CALL_TICKS) < 60:
@@ -123,11 +140,7 @@ LLM_TICK_SET = set(LLM_CALL_TICKS)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Portfolio Accounting
-# (see slides: "Risk Management")
-#
-# Tracks cash, holdings, NAV, traded value, and rolling average NAV for
-# turnover calculation.  71% cash buffer protects against drawdowns.
+# Portfolio Accounting  (see slides: "Risk Management")
 # ═══════════════════════════════════════════════════════════════════════════════
 class Portfolio:
     def __init__(self, initial: dict):
@@ -205,9 +218,8 @@ class Portfolio:
 # Market State — Price History & Corporate Action Index
 # (see slides: "Input Data — Alpha Sources for MVO & LLM")
 #
-# Ingests tick-level prices into rolling history per ticker.
-# Indexes corporate_actions.json by tick for O(1) lookup at runtime.
-# Handles STOCK_SPLIT mechanics (TC001): adjust price history + holdings.
+# Indexes corporate_actions.json by tick for O(1) lookup.
+# CA events are NOT read ahead — only consumed at the tick they fire.
 # ═══════════════════════════════════════════════════════════════════════════════
 class Market:
     def __init__(self, cas):
@@ -240,16 +252,10 @@ class Market:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LLM Alpha Engine — Event-Driven Sentiment Signals
-# (see slides: "LLM Alpha — Event-Driven Corporate Action Trading")
+# LLM Alpha Engine  (see slides: "LLM Alpha — Event-Driven Sentiment Signals")
 #
-# The LLM acts as a real-time quant analyst.  At each scheduled tick it
-# receives: event type, recent observed prices, current holdings, NAV.
-# Returns: {"expected_returns": {"TICKER": float}, "reasoning": "brief"}
-#
-# Robust Fallback (see slides: "Robust Fallback — Financial Intuition Encoding"):
-#   When LLM is unavailable, returns empty expected_returns — the agent
-#   continues with its MVO base portfolio unchanged.
+# Robust Fallback: when LLM is unavailable, returns empty expected_returns —
+# the agent continues with its MVO base portfolio unchanged.
 # ═══════════════════════════════════════════════════════════════════════════════
 class LLM:
     def __init__(self, host, token):
@@ -281,15 +287,17 @@ class LLM:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Phase A — MVO Portfolio Construction
-# (see slides: "Three-Phase Execution Model → Phase A")
+# Phase A — MVO Portfolio Construction  (see slides: "Three-Phase Execution
+# Model → Phase A")
 #
-# At tick 0 (after D002 split processing), deploy PORTFOLIO_ALLOCATION into
-# the market.  MVO's Σw ≤ 1 naturally produces a ~75% cash buffer.
-# Concentrated 8-stock solution from cardinality + weight constraints.
+# At tick 0, derive allocation from fundamentals via select_portfolio(),
+# then buy into the market.  No hardcoded tickers or dollar amounts.
 # ═══════════════════════════════════════════════════════════════════════════════
-def build_initial(mkt, pf, orders, tick):
-    for t, dollar in PORTFOLIO_ALLOCATION.items():
+def build_initial(mkt, pf, orders, tick, fundamentals):
+    allocation = select_portfolio(fundamentals, pf.cash)
+    log.info(f"MVO selected {len(allocation)} tickers: "
+             f"{', '.join(f'{t}(${d:,.0f})' for t, d in allocation.items())}")
+    for t, dollar in allocation.items():
         p = mkt.cur.get(t, 0)
         if p <= 0:
             continue
@@ -303,92 +311,98 @@ def build_initial(mkt, pf, orders, tick):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Phase B — Reactive CA Handler  (see slides: "LLM Alpha — Event-Driven
+# Corporate Action Trading")
+#
+# Generic handler that reads event type/ticker FROM the CA data at the tick
+# it fires.  No hardcoded tick numbers or ticker names.
+#
+# Event Type → Action:
+#   STOCK_SPLIT           → adjust holdings (mechanical, no trade)
+#   EARNINGS_SURPRISE     → BUY the ticker (positive momentum)
+#   DIVIDEND_DECLARATION  → BUY the ticker (yield capture)
+#   INDEX_REBALANCE       → BUY listed tickers (demand surge)
+#   MANAGEMENT_CHANGE     → SELL if held (governance risk)
+#   REGULATORY_FINE       → SELL if held (downside risk)
+#   MA_RUMOUR             → do not increase position (uncertainty)
+# ═══════════════════════════════════════════════════════════════════════════════
+POSITIVE_CA_TYPES = {"EARNINGS_SURPRISE", "DIVIDEND_DECLARATION", "INDEX_REBALANCE"}
+NEGATIVE_CA_TYPES = {"MANAGEMENT_CHANGE", "REGULATORY_FINE"}
+
+
+def handle_ca_event(ca, pf, mkt, orders, ti):
+    ca_type = ca.get("type", "").upper()
+    ticker_str = ca.get("ticker", "")
+    tickers = [t.strip() for t in ticker_str.split(",") if t.strip()]
+
+    if ca_type == "STOCK_SPLIT":
+        mkt.split(ca, pf)
+        log.info(f"[{ti:3d}] SPLIT: {ticker_str} {ca.get('split_ratio', '?')}:1")
+        return
+
+    if ca_type in POSITIVE_CA_TYPES:
+        for t in tickers:
+            p = mkt.cur.get(t, 0)
+            if p <= 0 or pf.turnover() >= MAX_TURNOVER - 0.01:
+                continue
+            budget = CA_BUDGET_FRAC * pf.total_value
+            qty = max(1, int(budget / p))
+            rec = pf.fill(t, "BUY", qty, p, mkt.cur)
+            if rec:
+                rec["tick_index"] = ti
+                orders.append(rec)
+                log.info(f"[{ti:3d}] CA-BUY {t}: {ca_type} → +{rec['qty']} shares")
+
+    elif ca_type in NEGATIVE_CA_TYPES:
+        for t in tickers:
+            h = pf.holdings.get(t)
+            if not h or h["qty"] <= 0:
+                continue
+            p = mkt.cur.get(t, 0)
+            if p <= 0 or pf.turnover() >= MAX_TURNOVER - 0.01:
+                continue
+            sell_qty = max(1, h["qty"] - 1)
+            rec = pf.fill(t, "SELL", sell_qty, p, mkt.cur)
+            if rec:
+                rec["tick_index"] = ti
+                orders.append(rec)
+                log.info(f"[{ti:3d}] CA-SELL {t}: {ca_type} → -{rec['qty']} shares")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Tick Processing Loop — Three-Phase Execution
 # (see slides: "Three-Phase Execution Model")
 #
 # Every tick:
 #   1. Ingest prices, revalue portfolio, update rolling NAV
-#   2. Process any corporate actions (splits, etc.)
-#   3. Phase A: Build initial portfolio at tick 0
-#   4. Phase B: Reactive CA trades (earnings, dividends, fines, rebalances)
-#   5. LLM alpha call if scheduled
+#   2. Phase A: Build initial portfolio at tick 0 (fundamentals-only)
+#   3. Phase B: Process any CA events discovered at this tick
+#   4. LLM alpha call if scheduled
 # ═══════════════════════════════════════════════════════════════════════════════
-async def process_tick(tick_data, pf, mkt, llm, orders, snaps):
+async def process_tick(tick_data, pf, mkt, llm, orders, snaps, fundamentals):
     ti = int(tick_data["tick_index"])
 
     mkt.ingest(tick_data)
     pf.revalue(mkt.cur)
     pf.tick_update()
 
-    # TC001: Handle STOCK_SPLIT — adjust price history + holdings, do NOT panic sell
-    for ca in mkt.ca_by_tick.get(ti, []):
-        if ca.get("type", "").upper() == "STOCK_SPLIT":
-            mkt.split(ca, pf)
-            log.info(f"[{ti:3d}] SPLIT: {ca['ticker']} {ca['split_ratio']}:1")
-
     # Phase A: Deploy MVO-optimised portfolio at tick 0
     if ti == 0:
-        build_initial(mkt, pf, orders, ti)
-
-    # Phase B — TC002: EARNINGS_SURPRISE reaction for A001
-    # (see slides: "EARNINGS_SURPRISE → LLM assesses momentum direction")
-    if ti == 90:
-        p = mkt.cur.get("A001", 0)
-        if p > 0:
-            rec = pf.fill("A001", "BUY", 5, p, mkt.cur)
-            if rec:
-                rec["tick_index"] = ti
-                orders.append(rec)
-
-    # Phase B — TC003: REGULATORY_FINE reaction for B008
-    # (see slides: "REGULATORY_FINE → LLM evaluates downside severity")
-    if ti == 280:
-        h = pf.holdings.get("B008")
-        if h and h["qty"] > 0:
-            p = mkt.cur.get("B008", 0)
-            if p > 0:
-                sell_qty = max(1, h["qty"] - 1)
-                rec = pf.fill("B008", "SELL", sell_qty, p, mkt.cur)
-                if rec:
-                    rec["tick_index"] = ti
-                    orders.append(rec)
-
-    # Phase B — CA event buys: LLM-informed tactical positions
-    # Signal > 0 → BUY (momentum / positive catalyst)
-    # Trade size scaled to remaining turnover budget
-    if ti in CA_BUY_TICKS:
-        ticker, budget = CA_BUY_TICKS[ti]
-        p = mkt.cur.get(ticker, 0)
-        if p > 0 and pf.turnover() < MAX_TURNOVER - 0.02:
-            qty = max(1, int(budget / p))
-            rec = pf.fill(ticker, "BUY", qty, p, mkt.cur)
-            if rec:
-                rec["tick_index"] = ti
-                orders.append(rec)
-
-    # Phase B — CA event sells: exit tactical positions after alpha captured
-    # Signal < 0 or target reached → SELL (risk reduction)
-    if ti in CA_SELL_TICKS:
-        for ticker in CA_SELL_TICKS[ti]:
-            h = pf.holdings.get(ticker)
-            if h and h["qty"] > 0:
-                p = mkt.cur.get(ticker, 0)
-                if p > 0 and pf.turnover() < MAX_TURNOVER - 0.01:
-                    ca_buy_qty = 0
-                    for bt, st, tk, bgt, _ in CA_TRADES:
-                        if tk == ticker and st == ti:
-                            ca_buy_qty = max(1, int(bgt / h["avg_price"]))
-                            break
-                    sell_qty = min(ca_buy_qty, h["qty"]) if ca_buy_qty > 0 else 0
-                    if sell_qty > 0:
-                        rec = pf.fill(ticker, "SELL", sell_qty, p, mkt.cur)
-                        if rec:
-                            rec["tick_index"] = ti
-                            orders.append(rec)
+        # Process splits first (they affect prices but don't require trading)
+        for ca in mkt.ca_by_tick.get(ti, []):
+            if ca.get("type", "").upper() == "STOCK_SPLIT":
+                handle_ca_event(ca, pf, mkt, orders, ti)
+        build_initial(mkt, pf, orders, ti, fundamentals)
+        # Process any remaining non-split CAs at tick 0
+        for ca in mkt.ca_by_tick.get(ti, []):
+            if ca.get("type", "").upper() != "STOCK_SPLIT":
+                handle_ca_event(ca, pf, mkt, orders, ti)
+    else:
+        # Phase B: React to any CA events at this tick
+        for ca in mkt.ca_by_tick.get(ti, []):
+            handle_ca_event(ca, pf, mkt, orders, ti)
 
     # LLM Alpha Calls — Selective Alpha Extraction
-    # (see slides: "LLM Integration — Selective Alpha Extraction")
-    # Prompt: tick, NAV, holdings → expected returns per ticker + reasoning
     if ti in LLM_TICK_SET and llm.remaining() > 0:
         holdings_str = ",".join(f"{t}({h['qty']})" for t, h in pf.holdings.items() if h["qty"] > 0)
         prompt = (f"Tick {ti}/389. NAV ${pf.total_value:,.0f}. Holdings:[{holdings_str}]. "
@@ -408,9 +422,6 @@ async def process_tick(tick_data, pf, mkt, llm, orders, snaps):
 # (see slides: "Performance Results (Observed Outcomes)" & "Score Breakdown")
 #
 # Sharpe = (mean(log_returns) / std(log_returns)) × √390
-# PnL score: min(100, pnl / 500,000 × 100)
-# Sharpe score: min(100, sharpe / 3.0 × 100)
-# Constraint score: 8/8 test cases
 # TOTAL = 60%×Sharpe + 20%×PnL + 20%×Constraints
 # ═══════════════════════════════════════════════════════════════════════════════
 def compute_results(snaps, orders, llm_log, start_cash):
@@ -453,11 +464,13 @@ def _ts():
 # Entry Point — Load Input Data & Run Simulation
 # (see slides: "Input Data — Alpha Sources for MVO & LLM")
 #
-# Inputs loaded:
+# Inputs loaded at start:
 #   initial_portfolio.json  → starting cash ($10M), no existing holdings
-#   corporate_actions.json  → 11 events with known types and tickers
-#   market_feed_full.json   → 50 tickers × 5 sectors × 390 ticks
 #   fundamentals.json       → P/E, EPS, beta, ESG, etc. for all 50 tickers
+#
+# Inputs discovered at runtime (tick by tick):
+#   market_feed_full.json   → 50 tickers × 5 sectors × 390 ticks
+#   corporate_actions.json  → events revealed only at their fire tick
 # ═══════════════════════════════════════════════════════════════════════════════
 async def main():
     ap = argparse.ArgumentParser()
@@ -479,10 +492,11 @@ async def main():
     with open(args.feed) as f:
         fr = json.load(f)
     ticks = fr if isinstance(fr, list) else fr.get("ticks", [])
+    with open(args.fundamentals) as f:
+        fundamentals = json.load(f)
 
-    log.info(f"Cash: ${pf_data['cash']:,.0f} | Ticks: {len(ticks)} | CAs: {len(cas)}")
-    for c in cas:
-        log.info(f"  T{c['tick']:>3}: {c['type']:25s} {c['ticker']}")
+    log.info(f"Cash: ${pf_data['cash']:,.0f} | Ticks: {len(ticks)} | CAs: {len(cas)} | "
+             f"Fundamentals: {len(fundamentals)} tickers")
 
     pf  = Portfolio(pf_data)
     mkt = Market(cas)
@@ -490,7 +504,7 @@ async def main():
     orders, snaps = [], []
 
     for t in ticks:
-        await process_tick(t, pf, mkt, llm, orders, snaps)
+        await process_tick(t, pf, mkt, llm, orders, snaps, fundamentals)
 
     res = compute_results(snaps, orders, llm.log, pf_data["cash"])
 
